@@ -1,6 +1,6 @@
 {
   "name": "@hit/ui-kit",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "UI Kit contract for HIT feature packs - interfaces and context only",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -9,7 +9,8 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
     }
   },
   "files": [
@@ -23,10 +24,11 @@
   },
   "devDependencies": {
     "@types/react": "^18.0.0",
+    "lucide-react": "^0.400.0",
     "typescript": "^5.0.0"
   },
   "peerDependencies": {
-    "react": "^18.0.0 || ^19.0.0"
+    "react": "^19.2.1"
   },
   "keywords": [
     "hit",
@@ -36,4 +38,3 @@
   ],
   "license": "MIT"
 }
-
