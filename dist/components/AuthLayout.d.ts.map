@@ -1,0 +1,1 @@
+{"version":3,"file":"AuthLayout.d.ts","sourceRoot":"","sources":["../../src/components/AuthLayout.tsx"],"names":[],"mappings":"AAEA,OAAO,KAAK,MAAM,OAAO,CAAC;AAI1B,MAAM,WAAW,eAAe;IAC9B,QAAQ,EAAE,KAAK,CAAC,SAAS,CAAC;CAC3B;AAED;;GAEG;AACH,wBAAgB,UAAU,CAAC,EAAE,QAAQ,EAAE,EAAE,eAAe,2CAiBvD"}

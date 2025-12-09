@@ -1,0 +1,153 @@
+/**
+ * Component Prop Types
+ *
+ * Type definitions for all UI Kit components.
+ */
+import React from 'react';
+export interface PageProps {
+    title?: string;
+    description?: string;
+    actions?: React.ReactNode;
+    children: React.ReactNode;
+}
+export interface CardProps {
+    title?: string;
+    description?: string;
+    footer?: React.ReactNode;
+    children: React.ReactNode;
+}
+export interface ButtonProps {
+    variant?: 'primary' | 'secondary' | 'danger' | 'ghost' | 'link';
+    size?: 'sm' | 'md' | 'lg';
+    loading?: boolean;
+    disabled?: boolean;
+    type?: 'button' | 'submit' | 'reset';
+    onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
+    children: React.ReactNode;
+}
+export interface InputProps {
+    label?: string;
+    type?: 'text' | 'email' | 'password' | 'number' | 'tel' | 'url' | 'search';
+    placeholder?: string;
+    value: string;
+    onChange: (value: string) => void;
+    error?: string;
+    disabled?: boolean;
+    required?: boolean;
+}
+export interface TextAreaProps {
+    label?: string;
+    placeholder?: string;
+    value: string;
+    onChange: (value: string) => void;
+    rows?: number;
+    error?: string;
+    disabled?: boolean;
+    required?: boolean;
+}
+export interface SelectOption {
+    value: string;
+    label: string;
+    disabled?: boolean;
+}
+export interface SelectProps {
+    label?: string;
+    options: SelectOption[];
+    value: string;
+    onChange: (value: string) => void;
+    placeholder?: string;
+    error?: string;
+    disabled?: boolean;
+    required?: boolean;
+}
+export interface CheckboxProps {
+    label?: string;
+    checked: boolean;
+    onChange: (checked: boolean) => void;
+    disabled?: boolean;
+}
+export interface TableColumn {
+    key: string;
+    label: string;
+    render?: (value: unknown, row: Record<string, unknown>, index: number) => React.ReactNode;
+    width?: string;
+    align?: 'left' | 'center' | 'right';
+}
+export interface TableProps {
+    columns: TableColumn[];
+    data: Record<string, unknown>[];
+    onRowClick?: (row: Record<string, unknown>, index: number) => void;
+    emptyMessage?: string;
+    loading?: boolean;
+}
+export interface BadgeProps {
+    variant?: 'default' | 'success' | 'warning' | 'error' | 'info';
+    children: React.ReactNode;
+}
+export interface AvatarProps {
+    src?: string;
+    name?: string;
+    size?: 'sm' | 'md' | 'lg';
+}
+export interface AlertProps {
+    variant: 'success' | 'warning' | 'error' | 'info';
+    title?: string;
+    onClose?: () => void;
+    children: React.ReactNode;
+}
+export interface ModalProps {
+    open: boolean;
+    onClose: () => void;
+    title?: string;
+    description?: string;
+    size?: 'sm' | 'md' | 'lg' | 'xl';
+    children: React.ReactNode;
+}
+export interface SpinnerProps {
+    size?: 'sm' | 'md' | 'lg';
+}
+export interface EmptyStateProps {
+    icon?: React.ReactNode;
+    title: string;
+    description?: string;
+    action?: React.ReactNode;
+}
+export interface TabsProps {
+    tabs: {
+        id: string;
+        label: string;
+        content: React.ReactNode;
+    }[];
+    activeTab?: string;
+    onChange?: (tabId: string) => void;
+}
+export interface DropdownProps {
+    trigger: React.ReactNode;
+    items: {
+        label: string;
+        onClick: () => void;
+        icon?: React.ReactNode;
+        danger?: boolean;
+        disabled?: boolean;
+    }[];
+    align?: 'left' | 'right';
+}
+export interface UiKit {
+    Page: React.ComponentType<PageProps>;
+    Card: React.ComponentType<CardProps>;
+    Button: React.ComponentType<ButtonProps>;
+    Input: React.ComponentType<InputProps>;
+    TextArea: React.ComponentType<TextAreaProps>;
+    Select: React.ComponentType<SelectProps>;
+    Checkbox: React.ComponentType<CheckboxProps>;
+    Table: React.ComponentType<TableProps>;
+    Badge: React.ComponentType<BadgeProps>;
+    Avatar: React.ComponentType<AvatarProps>;
+    Alert: React.ComponentType<AlertProps>;
+    Modal: React.ComponentType<ModalProps>;
+    Spinner: React.ComponentType<SpinnerProps>;
+    EmptyState: React.ComponentType<EmptyStateProps>;
+    Tabs: React.ComponentType<TabsProps>;
+    Dropdown: React.ComponentType<DropdownProps>;
+}
+//# sourceMappingURL=types.d.ts.map

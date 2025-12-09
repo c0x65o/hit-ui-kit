@@ -1,0 +1,145 @@
+'use client';
+
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import type { ColorTokens } from '../tokens/colors';
+import { darkColors, lightColors } from '../tokens/colors';
+import { spacing, componentSpacing } from '../tokens/spacing';
+import { typography, textStyles } from '../tokens/typography';
+import { radius } from '../tokens/radius';
+import { shadows, darkShadows } from '../tokens/shadows';
+
+/**
+ * Complete theme object with all design tokens
+ */
+export interface Theme {
+  name: 'dark' | 'light';
+  colors: ColorTokens;
+  spacing: typeof spacing;
+  componentSpacing: typeof componentSpacing;
+  typography: typeof typography;
+  textStyles: typeof textStyles;
+  radius: typeof radius;
+  shadows: typeof shadows;
+}
+
+/**
+ * Dark theme
+ */
+export const darkTheme: Theme = {
+  name: 'dark',
+  colors: darkColors,
+  spacing,
+  componentSpacing,
+  typography,
+  textStyles,
+  radius,
+  shadows: darkShadows,
+};
+
+/**
+ * Light theme
+ */
+export const lightTheme: Theme = {
+  name: 'light',
+  colors: lightColors,
+  spacing,
+  componentSpacing,
+  typography,
+  textStyles,
+  radius,
+  shadows,
+};
+
+/**
+ * Theme context
+ */
+interface ThemeContextValue {
+  theme: Theme;
+  setTheme: (name: 'dark' | 'light') => void;
+  toggleTheme: () => void;
+}
+
+const ThemeContext = createContext<ThemeContextValue | null>(null);
+
+/**
+ * Hook to access the current theme
+ */
+export function useTheme(): ThemeContextValue {
+  const context = useContext(ThemeContext);
+  if (!context) {
+    throw new Error('useTheme must be used within a ThemeProvider');
+  }
+  return context;
+}
+
+/**
+ * Hook to get just the theme object (shorthand)
+ */
+export function useThemeTokens(): Theme {
+  return useTheme().theme;
+}
+
+/**
+ * Theme Provider Props
+ */
+interface ThemeProviderProps {
+  children: React.ReactNode;
+  defaultTheme?: 'dark' | 'light';
+  /** Storage key for persisting theme preference */
+  storageKey?: string;
+}
+
+/**
+ * Theme Provider Component
+ */
+export function ThemeProvider({
+  children,
+  defaultTheme = 'dark',
+  storageKey = 'hit-ui-theme',
+}: ThemeProviderProps): React.ReactElement {
+  const [themeName, setThemeName] = useState<'dark' | 'light'>(defaultTheme);
+
+  // Load theme from storage on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem(storageKey);
+      if (stored === 'dark' || stored === 'light') {
+        setThemeName(stored);
+      }
+    }
+  }, [storageKey]);
+
+  // Update document attributes when theme changes
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      document.documentElement.setAttribute('data-theme', themeName);
+      if (themeName === 'dark') {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+    }
+  }, [themeName]);
+
+  const setTheme = useCallback((name: 'dark' | 'light') => {
+    setThemeName(name);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(storageKey, name);
+    }
+  }, [storageKey]);
+
+  const toggleTheme = useCallback(() => {
+    setTheme(themeName === 'dark' ? 'light' : 'dark');
+  }, [themeName, setTheme]);
+
+  const theme = themeName === 'dark' ? darkTheme : lightTheme;
+
+  const value: ThemeContextValue = {
+    theme,
+    setTheme,
+    toggleTheme,
+  };
+
+  return React.createElement(ThemeContext.Provider, { value }, children);
+}
+
