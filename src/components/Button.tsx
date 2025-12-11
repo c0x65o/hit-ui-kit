@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Loader2 } from 'lucide-react';
-import { useThemeTokens } from '../theme';
+import { useThemeTokens } from '../theme/index.js';
 import { styles } from './utils';
 import type { ButtonProps } from '../types';
 

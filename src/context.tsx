@@ -1,43 +1,10 @@
 'use client';
 
 /**
- * HIT UI Kit
+ * UiKit Context
  * 
- * A themeable component library with design tokens.
- * 
- * ## Quick Start
- * 
- * ```tsx
- * import { 
- *   ThemeProvider, 
- *   UiKitProvider, 
- *   defaultKit, 
- *   useUi 
- * } from '@hit/ui-kit';
- * 
- * // Wrap your app
- * function App() {
- *   return (
- *     <ThemeProvider defaultTheme="dark">
- *       <UiKitProvider kit={defaultKit}>
- *         <MyApp />
- *       </UiKitProvider>
- *     </ThemeProvider>
- *   );
- * }
- * 
- * // Use components
- * function MyPage() {
- *   const { Page, Card, Button } = useUi();
- *   return (
- *     <Page title="Dashboard">
- *       <Card>
- *         <Button variant="primary">Click me</Button>
- *       </Card>
- *     </Page>
- *   );
- * }
- * ```
+ * Provides the UiKit context without importing any components.
+ * Use this for lazy loading the kit.
  */
 
 import React, { createContext, useContext } from 'react';
@@ -106,9 +73,9 @@ export function createKit(partial: Partial<UiKit>): UiKit {
     TextArea: partial.TextArea ?? notImplemented('TextArea'),
     Select: partial.Select ?? notImplemented('Select'),
     Checkbox: partial.Checkbox ?? notImplemented('Checkbox'),
-  Table: partial.Table ?? notImplemented('Table'),
-  DataTable: partial.DataTable ?? notImplemented('DataTable'),
-  Badge: partial.Badge ?? notImplemented('Badge'),
+    Table: partial.Table ?? notImplemented('Table'),
+    DataTable: partial.DataTable ?? notImplemented('DataTable'),
+    Badge: partial.Badge ?? notImplemented('Badge'),
     Avatar: partial.Avatar ?? notImplemented('Avatar'),
     Alert: partial.Alert ?? notImplemented('Alert'),
     Modal: partial.Modal ?? notImplemented('Modal'),
@@ -118,79 +85,3 @@ export function createKit(partial: Partial<UiKit>): UiKit {
     Dropdown: partial.Dropdown ?? notImplemented('Dropdown'),
   };
 }
-
-// =============================================================================
-// EXPORTS
-// =============================================================================
-
-// Types
-export type {
-  UiKit,
-  PageProps,
-  CardProps,
-  ButtonProps,
-  InputProps,
-  TextAreaProps,
-  SelectProps,
-  SelectOption,
-  CheckboxProps,
-  TableProps,
-  TableColumn,
-  BadgeProps,
-  AvatarProps,
-  AlertProps,
-  ModalProps,
-  SpinnerProps,
-  EmptyStateProps,
-  TabsProps,
-  DropdownProps,
-} from './types';
-
-// Theme
-export {
-  ThemeProvider,
-  ConditionalThemeProvider,
-  useTheme,
-  useThemeContext,
-  useThemeTokens,
-  getConfiguredTheme,
-  darkTheme,
-  lightTheme,
-  type Theme,
-} from './theme';
-
-// Tokens
-export * from './tokens';
-
-// Default Kit
-export { defaultKit } from './kit';
-
-// Components (for direct imports)
-export {
-  Page,
-  Card,
-  Button,
-  Input,
-  TextArea,
-  Select,
-  Checkbox,
-  Table,
-  DataTable,
-  Badge,
-  Avatar,
-  Alert,
-  Modal,
-  Spinner,
-  EmptyState,
-  Tabs,
-  Dropdown,
-  // Auth-specific
-  AuthLayout,
-  AuthCard,
-  FormInput,
-  // Utils
-  cn,
-  styles,
-} from './components';
-
-export type { AuthLayoutProps, AuthCardProps, FormInputProps } from './components';

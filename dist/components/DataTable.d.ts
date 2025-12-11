@@ -1,0 +1,27 @@
+import type { DataTableProps } from '../types';
+/**
+ * DataTable Component
+ *
+ * A powerful, feature-rich data table built on TanStack Table v8.
+ *
+ * Features:
+ * - Sorting (click column headers)
+ * - Global search/filtering
+ * - Column visibility toggle
+ * - Export to CSV
+ * - Pagination
+ * - Responsive design
+ *
+ * @example
+ * ```tsx
+ * <DataTable
+ *   columns={columns}
+ *   data={data}
+ *   searchable
+ *   exportable
+ *   showColumnVisibility
+ * />
+ * ```
+ */
+export declare function DataTable<TData extends Record<string, unknown>>({ columns, data, searchable, exportable, showColumnVisibility, onRowClick, emptyMessage, loading, pageSize, initialSorting, initialColumnVisibility, }: DataTableProps<TData>): import("react/jsx-runtime").JSX.Element;
+//# sourceMappingURL=DataTable.d.ts.map

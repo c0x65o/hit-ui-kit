@@ -15,6 +15,7 @@ import { TextArea } from './components/TextArea';
 import { Select } from './components/Select';
 import { Checkbox } from './components/Checkbox';
 import { Table } from './components/Table';
+import { DataTable } from './components/DataTable';
 import { Badge } from './components/Badge';
 import { Avatar } from './components/Avatar';
 import { Alert } from './components/Alert';
@@ -51,6 +52,7 @@ export const defaultKit: UiKit = {
   Select,
   Checkbox,
   Table,
+  DataTable,
   Badge,
   Avatar,
   Alert,

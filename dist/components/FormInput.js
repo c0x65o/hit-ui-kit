@@ -2,7 +2,7 @@
 import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
 import { useState } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
-import { useThemeTokens } from '../theme';
+import { useThemeTokens } from '../theme/index.js';
 import { styles } from './utils';
 /**
  * Compact form input for auth forms.

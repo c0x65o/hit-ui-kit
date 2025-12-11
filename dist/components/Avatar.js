@@ -1,6 +1,6 @@
 'use client';
 import { jsx as _jsx } from "react/jsx-runtime";
-import { useThemeTokens } from '../theme';
+import { useThemeTokens } from '../theme/index.js';
 import { styles } from './utils';
 export function Avatar({ src, name, size = 'md' }) {
     const { colors, textStyles: ts } = useThemeTokens();

@@ -88,6 +88,7 @@ export function createKit(partial) {
         Select: partial.Select ?? notImplemented('Select'),
         Checkbox: partial.Checkbox ?? notImplemented('Checkbox'),
         Table: partial.Table ?? notImplemented('Table'),
+        DataTable: partial.DataTable ?? notImplemented('DataTable'),
         Badge: partial.Badge ?? notImplemented('Badge'),
         Avatar: partial.Avatar ?? notImplemented('Avatar'),
         Alert: partial.Alert ?? notImplemented('Alert'),
@@ -105,7 +106,7 @@ export * from './tokens';
 // Default Kit
 export { defaultKit } from './kit';
 // Components (for direct imports)
-export { Page, Card, Button, Input, TextArea, Select, Checkbox, Table, Badge, Avatar, Alert, Modal, Spinner, EmptyState, Tabs, Dropdown, 
+export { Page, Card, Button, Input, TextArea, Select, Checkbox, Table, DataTable, Badge, Avatar, Alert, Modal, Spinner, EmptyState, Tabs, Dropdown, 
 // Auth-specific
 AuthLayout, AuthCard, FormInput, 
 // Utils

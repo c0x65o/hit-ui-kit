@@ -1,7 +1,7 @@
 'use client';
 import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
 import { FileQuestion } from 'lucide-react';
-import { useThemeTokens } from '../theme';
+import { useThemeTokens } from '../theme/index.js';
 import { styles } from './utils';
 export function EmptyState({ icon, title, description, action }) {
     const { colors, textStyles: ts, spacing } = useThemeTokens();

@@ -20,6 +20,7 @@ export { FormInput, type FormInputProps } from './FormInput';
 
 // Data Display
 export { Table } from './Table';
+export { DataTable } from './DataTable';
 export { Badge } from './Badge';
 export { Avatar } from './Avatar';
 

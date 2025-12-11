@@ -1,7 +1,7 @@
 'use client';
 import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
 import { Loader2 } from 'lucide-react';
-import { useThemeTokens } from '../theme';
+import { useThemeTokens } from '../theme/index.js';
 import { styles } from './utils';
 export function Button({ variant = 'primary', size = 'md', loading, disabled, type = 'button', onClick, children, }) {
     const { colors, radius, componentSpacing, textStyles: ts } = useThemeTokens();

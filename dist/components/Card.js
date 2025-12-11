@@ -1,6 +1,6 @@
 'use client';
 import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
-import { useThemeTokens } from '../theme';
+import { useThemeTokens } from '../theme/index.js';
 import { styles } from './utils';
 export function Card({ title, description, footer, children }) {
     const { colors, radius, componentSpacing, textStyles: ts, spacing } = useThemeTokens();

@@ -1,7 +1,7 @@
 'use client';
 import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
 import { X } from 'lucide-react';
-import { useThemeTokens } from '../theme';
+import { useThemeTokens } from '../theme/index.js';
 import { styles } from './utils';
 export function Modal({ open, onClose, title, description, size = 'md', children }) {
     const { colors, radius, textStyles: ts, spacing, shadows } = useThemeTokens();

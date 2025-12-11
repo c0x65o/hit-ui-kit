@@ -14,5 +14,5 @@ export {
   darkTheme,
   lightTheme,
   type Theme,
-} from './theme';
+} from './theme.js';
 

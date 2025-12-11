@@ -104,6 +104,25 @@ export interface TableProps {
   loading?: boolean;
 }
 
+export interface DataTableColumn<TData = Record<string, unknown>> extends TableColumn {
+  sortable?: boolean;
+  hideable?: boolean;
+}
+
+export interface DataTableProps<TData extends Record<string, unknown> = Record<string, unknown>> {
+  columns: DataTableColumn<TData>[];
+  data: TData[];
+  searchable?: boolean;
+  exportable?: boolean;
+  showColumnVisibility?: boolean;
+  onRowClick?: (row: TData, index: number) => void;
+  emptyMessage?: string;
+  loading?: boolean;
+  pageSize?: number;
+  initialSorting?: Array<{ id: string; desc?: boolean }>;
+  initialColumnVisibility?: Record<string, boolean>;
+}
+
 export interface BadgeProps {
   variant?: 'default' | 'success' | 'warning' | 'error' | 'info';
   children: React.ReactNode;
@@ -186,6 +205,7 @@ export interface UiKit {
 
   // Data Display
   Table: React.ComponentType<TableProps>;
+  DataTable: React.ComponentType<DataTableProps<any>>;
   Badge: React.ComponentType<BadgeProps>;
   Avatar: React.ComponentType<AvatarProps>;
 

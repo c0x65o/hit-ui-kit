@@ -1,6 +1,6 @@
 'use client';
 import { jsx as _jsx } from "react/jsx-runtime";
-import { useThemeTokens } from '../theme';
+import { useThemeTokens } from '../theme/index.js';
 import { styles } from './utils';
 export function Badge({ variant = 'default', children }) {
     const { colors, radius, textStyles: ts, spacing } = useThemeTokens();

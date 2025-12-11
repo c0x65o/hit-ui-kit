@@ -1,16 +1,35 @@
 {
   "name": "@hit/ui-kit",
-  "version": "1.0.6",
+  "version": "1.0.8",
   "description": "UI Kit contract for HIT feature packs - interfaces and context only",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "type": "module",
+  "sideEffects": false,
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "require": "./dist/index.js",
       "default": "./dist/index.js"
+    },
+    "./theme": {
+      "types": "./dist/theme/index.d.ts",
+      "import": "./dist/theme/index.js",
+      "require": "./dist/theme/index.js",
+      "default": "./dist/theme/index.js"
+    },
+    "./kit": {
+      "types": "./dist/kit.d.ts",
+      "import": "./dist/kit.js",
+      "require": "./dist/kit.js",
+      "default": "./dist/kit.js"
+    },
+    "./context": {
+      "types": "./dist/context.d.ts",
+      "import": "./dist/context.js",
+      "require": "./dist/context.js",
+      "default": "./dist/context.js"
     }
   },
   "files": [
@@ -24,11 +43,13 @@
   },
   "devDependencies": {
     "@types/react": "^18.0.0",
+    "@tanstack/react-table": "^8.0.0",
     "lucide-react": "^0.460.0",
     "typescript": "^5.0.0"
   },
   "peerDependencies": {
-    "react": "^18.0.0 || ^19.0.0"
+    "react": "^18.0.0 || ^19.0.0",
+    "@tanstack/react-table": "^8.0.0"
   },
   "keywords": [
     "hit",

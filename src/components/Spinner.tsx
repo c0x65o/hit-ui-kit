@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Loader2 } from 'lucide-react';
-import { useThemeTokens } from '../theme';
+import { useThemeTokens } from '../theme/index.js';
 import type { SpinnerProps } from '../types';
 
 export function Spinner({ size = 'md' }: SpinnerProps) {

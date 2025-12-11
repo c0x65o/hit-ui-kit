@@ -1,7 +1,7 @@
 'use client';
 import { jsx as _jsx } from "react/jsx-runtime";
 import { Loader2 } from 'lucide-react';
-import { useThemeTokens } from '../theme';
+import { useThemeTokens } from '../theme/index.js';
 export function Spinner({ size = 'md' }) {
     const { colors } = useThemeTokens();
     const sizeMap = {
