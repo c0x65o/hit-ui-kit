@@ -3,5 +3,5 @@
  *
  * Export theme provider and hooks.
  */
-export { ThemeProvider, useTheme, useThemeTokens, darkTheme, lightTheme, } from './theme';
+export { ThemeProvider, ConditionalThemeProvider, useTheme, useThemeContext, useThemeTokens, getConfiguredTheme, darkTheme, lightTheme, } from './theme';
 //# sourceMappingURL=index.js.map

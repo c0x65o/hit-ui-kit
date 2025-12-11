@@ -57,7 +57,7 @@ export declare function UiKitProvider({ kit, children, }: {
  */
 export declare function createKit(partial: Partial<UiKit>): UiKit;
 export type { UiKit, PageProps, CardProps, ButtonProps, InputProps, TextAreaProps, SelectProps, SelectOption, CheckboxProps, TableProps, TableColumn, BadgeProps, AvatarProps, AlertProps, ModalProps, SpinnerProps, EmptyStateProps, TabsProps, DropdownProps, } from './types';
-export { ThemeProvider, useTheme, useThemeTokens, darkTheme, lightTheme, type Theme, } from './theme';
+export { ThemeProvider, ConditionalThemeProvider, useTheme, useThemeContext, useThemeTokens, getConfiguredTheme, darkTheme, lightTheme, type Theme, } from './theme';
 export * from './tokens';
 export { defaultKit } from './kit';
 export { Page, Card, Button, Input, TextArea, Select, Checkbox, Table, Badge, Avatar, Alert, Modal, Spinner, EmptyState, Tabs, Dropdown, AuthLayout, AuthCard, FormInput, cn, styles, } from './components';

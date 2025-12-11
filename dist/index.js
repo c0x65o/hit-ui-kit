@@ -99,7 +99,7 @@ export function createKit(partial) {
     };
 }
 // Theme
-export { ThemeProvider, useTheme, useThemeTokens, darkTheme, lightTheme, } from './theme';
+export { ThemeProvider, ConditionalThemeProvider, useTheme, useThemeContext, useThemeTokens, getConfiguredTheme, darkTheme, lightTheme, } from './theme';
 // Tokens
 export * from './tokens';
 // Default Kit

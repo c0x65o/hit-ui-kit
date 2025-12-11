@@ -6,8 +6,11 @@
 
 export {
   ThemeProvider,
+  ConditionalThemeProvider,
   useTheme,
+  useThemeContext,
   useThemeTokens,
+  getConfiguredTheme,
   darkTheme,
   lightTheme,
   type Theme,

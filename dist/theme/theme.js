@@ -1,4 +1,5 @@
 'use client';
+import { Fragment as _Fragment, jsx as _jsx } from "react/jsx-runtime";
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { darkColors, lightColors } from '../tokens/colors';
 import { spacing, componentSpacing } from '../tokens/spacing';
@@ -33,6 +34,12 @@ export const lightTheme = {
 };
 const ThemeContext = createContext(null);
 /**
+ * Check if we're inside a ThemeProvider (without throwing)
+ */
+export function useThemeContext() {
+    return useContext(ThemeContext);
+}
+/**
  * Hook to access the current theme
  */
 export function useTheme() {
@@ -47,6 +54,36 @@ export function useTheme() {
  */
 export function useThemeTokens() {
     return useTheme().theme;
+}
+/**
+ * Get the default theme from config or DOM
+ * Used for SSR-safe theme initialization
+ */
+export function getConfiguredTheme() {
+    // First check DOM (set by blocking script) - most reliable
+    if (typeof document !== 'undefined') {
+        if (document.documentElement.classList.contains('dark'))
+            return 'dark';
+        if (document.documentElement.getAttribute('data-theme') === 'dark')
+            return 'dark';
+        if (document.documentElement.getAttribute('data-theme') === 'light')
+            return 'light';
+    }
+    // Then check window config
+    if (typeof window !== 'undefined') {
+        const win = window;
+        const theme = win.__HIT_CONFIG?.branding?.defaultTheme;
+        if (theme === 'dark')
+            return 'dark';
+        if (theme === 'light')
+            return 'light';
+        // Handle 'system' - check OS preference
+        if (theme === 'system' && window.matchMedia?.('(prefers-color-scheme: dark)').matches) {
+            return 'dark';
+        }
+    }
+    // Default to light (safer for SSR - matches most apps)
+    return 'light';
 }
 /**
  * Theme Provider Component
@@ -117,5 +154,15 @@ export function ThemeProvider({ children, defaultTheme = 'dark', storageKey = 'h
         toggleTheme,
     };
     return React.createElement(ThemeContext.Provider, { value }, children);
+}
+export function ConditionalThemeProvider({ children, fallbackTheme = 'light', }) {
+    const parentTheme = useThemeContext();
+    // If we're already inside a ThemeProvider, just render children
+    if (parentTheme) {
+        return _jsx(_Fragment, { children: children });
+    }
+    // No parent provider - wrap with our own, using smart defaults
+    const detectedTheme = getConfiguredTheme();
+    return (_jsx(ThemeProvider, { defaultTheme: detectedTheme || fallbackTheme, children: children }));
 }
 //# sourceMappingURL=theme.js.map
