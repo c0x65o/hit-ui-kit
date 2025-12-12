@@ -5,10 +5,16 @@ import { useThemeTokens } from '../theme/index.js';
 import { styles } from './utils';
 import type { InputProps } from '../types';
 
-export const Input = React.forwardRef<HTMLInputElement, InputProps>(function Input(
-  { label, type = 'text', value, onChange, error, required, ...inputProps },
-  ref
-) {
+export function Input({
+  label,
+  type = 'text',
+  placeholder,
+  value,
+  onChange,
+  error,
+  disabled,
+  required,
+}: InputProps) {
   const { colors, radius, componentSpacing, textStyles: ts, spacing } = useThemeTokens();
 
   return (
@@ -26,12 +32,11 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(function Inp
         </label>
       )}
       <input
-        ref={ref}
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        aria-invalid={Boolean(error) || undefined}
-        {...inputProps}
+        placeholder={placeholder}
+        disabled={disabled}
         style={styles({
           width: '100%',
           height: componentSpacing.input.height,
@@ -42,8 +47,8 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(function Inp
           color: colors.text.primary,
           fontSize: ts.body.fontSize,
           outline: 'none',
-          opacity: inputProps.disabled ? 0.5 : 1,
-          cursor: inputProps.disabled ? 'not-allowed' : 'text',
+          opacity: disabled ? 0.5 : 1,
+          cursor: disabled ? 'not-allowed' : 'text',
           boxSizing: 'border-box',
         })}
       />
@@ -58,5 +63,5 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(function Inp
       )}
     </div>
   );
-});
+}
 

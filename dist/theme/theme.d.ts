@@ -46,12 +46,6 @@ export declare function useTheme(): ThemeContextValue;
  */
 export declare function useThemeTokens(): Theme;
 /**
- * Deep partial type for color overrides
- */
-type DeepPartial<T> = {
-    [P in keyof T]?: T[P] extends object ? DeepPartial<T[P]> : T[P];
-};
-/**
  * Theme Provider Props
  */
 interface ThemeProviderProps {
@@ -59,12 +53,6 @@ interface ThemeProviderProps {
     defaultTheme?: 'dark' | 'light';
     /** Storage key for persisting theme preference */
     storageKey?: string;
-    /** Custom color overrides (applied to both light and dark themes) */
-    colorOverrides?: DeepPartial<ColorTokens>;
-    /** Custom color overrides for dark theme only */
-    darkColorOverrides?: DeepPartial<ColorTokens>;
-    /** Custom color overrides for light theme only */
-    lightColorOverrides?: DeepPartial<ColorTokens>;
 }
 /**
  * Get the default theme from config or DOM
@@ -74,7 +62,7 @@ export declare function getConfiguredTheme(): 'light' | 'dark';
 /**
  * Theme Provider Component
  */
-export declare function ThemeProvider({ children, defaultTheme, storageKey, colorOverrides, darkColorOverrides, lightColorOverrides, }: ThemeProviderProps): React.ReactElement;
+export declare function ThemeProvider({ children, defaultTheme, storageKey, }: ThemeProviderProps): React.ReactElement;
 /**
  * Conditional Theme Provider
  *

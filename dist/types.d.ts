@@ -25,12 +25,15 @@ export interface ButtonProps {
     onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
     children: React.ReactNode;
 }
-export interface InputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange' | 'type'> {
+export interface InputProps {
     label?: string;
-    type?: React.InputHTMLAttributes<HTMLInputElement>['type'];
+    type?: 'text' | 'email' | 'password' | 'number' | 'tel' | 'url' | 'search';
+    placeholder?: string;
     value: string;
     onChange: (value: string) => void;
     error?: string;
+    disabled?: boolean;
+    required?: boolean;
 }
 export interface TextAreaProps {
     label?: string;
@@ -100,7 +103,6 @@ export interface DataTableProps<TData extends Record<string, unknown> = Record<s
     page?: number;
     onPageChange?: (page: number) => void;
     manualPagination?: boolean;
-    onRefresh?: () => void;
 }
 export interface BadgeProps {
     variant?: 'default' | 'success' | 'warning' | 'error' | 'info';

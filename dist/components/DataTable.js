@@ -2,7 +2,7 @@
 import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-runtime";
 import { useState, useMemo, useEffect } from 'react';
 import { useReactTable, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, flexRender, } from '@tanstack/react-table';
-import { ChevronDown, ChevronUp, ChevronsUpDown, Download, Eye, EyeOff, Search, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, RefreshCw, } from 'lucide-react';
+import { ChevronDown, ChevronUp, ChevronsUpDown, Download, Eye, EyeOff, Search, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, } from 'lucide-react';
 import { useThemeTokens } from '../theme/index.js';
 import { styles } from './utils';
 import { Button } from './Button';
@@ -33,7 +33,7 @@ import { Dropdown } from './Dropdown';
  */
 export function DataTable({ columns, data, searchable = true, exportable = true, showColumnVisibility = true, onRowClick, emptyMessage = 'No data available', loading = false, pageSize = 10, initialSorting, initialColumnVisibility, 
 // Server-side pagination
-total, page: externalPage, onPageChange, manualPagination = false, onRefresh, }) {
+total, page: externalPage, onPageChange, manualPagination = false, }) {
     const { colors, textStyles: ts, spacing } = useThemeTokens();
     const [sorting, setSorting] = useState(initialSorting?.map((s) => ({ id: s.id, desc: s.desc ?? false })) || []);
     const [columnFilters, setColumnFilters] = useState([]);
@@ -144,7 +144,7 @@ total, page: externalPage, onPageChange, manualPagination = false, onRefresh, })
     }
     const visibleColumns = table.getVisibleFlatColumns();
     const hasData = data.length > 0;
-    return (_jsxs("div", { style: { display: 'flex', flexDirection: 'column', gap: spacing.lg }, children: [(searchable || exportable || showColumnVisibility || onRefresh) && (_jsxs("div", { style: styles({
+    return (_jsxs("div", { style: { display: 'flex', flexDirection: 'column', gap: spacing.lg }, children: [(searchable || exportable || showColumnVisibility) && (_jsxs("div", { style: styles({
                     display: 'flex',
                     gap: spacing.md,
                     alignItems: 'center',
@@ -168,10 +168,7 @@ total, page: externalPage, onPageChange, manualPagination = false, onRefresh, })
                                     fontSize: ts.body.fontSize,
                                     outline: 'none',
                                     boxSizing: 'border-box',
-                                }) })] })), _jsxs("div", { style: { display: 'flex', gap: spacing.sm }, children: [onRefresh && (_jsxs(Button, { variant: "secondary", size: "sm", onClick: onRefresh, disabled: loading, children: [_jsx(RefreshCw, { size: 16, style: {
-                                            marginRight: spacing.xs,
-                                            animation: loading ? 'spin 1s linear infinite' : 'none',
-                                        } }), "Refresh"] })), showColumnVisibility && (_jsx(Dropdown, { trigger: _jsxs(Button, { variant: "secondary", size: "sm", children: [_jsx(Eye, { size: 16, style: { marginRight: spacing.xs } }), "Columns"] }), items: table
+                                }) })] })), _jsxs("div", { style: { display: 'flex', gap: spacing.sm }, children: [showColumnVisibility && (_jsx(Dropdown, { trigger: _jsxs(Button, { variant: "secondary", size: "sm", children: [_jsx(Eye, { size: 16, style: { marginRight: spacing.xs } }), "Columns"] }), items: table
                                     .getAllColumns()
                                     .filter((col) => col.getCanHide())
                                     .map((col) => ({

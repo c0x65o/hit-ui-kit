@@ -6,148 +6,6 @@ import { spacing, componentSpacing } from '../tokens/spacing';
 import { typography, textStyles } from '../tokens/typography';
 import { radius } from '../tokens/radius';
 import { shadows, darkShadows } from '../tokens/shadows';
-// =============================================================================
-// COLOR HELPERS (PRIMARY COLOR DERIVATION)
-// =============================================================================
-function clamp(n, min, max) {
-    return Math.min(max, Math.max(min, n));
-}
-function normalizeHex(hex) {
-    const raw = hex.trim();
-    if (!raw)
-        return null;
-    const h = raw.startsWith('#') ? raw.slice(1) : raw;
-    if (/^[0-9a-fA-F]{3}$/.test(h)) {
-        const r = h[0];
-        const g = h[1];
-        const b = h[2];
-        return `#${r}${r}${g}${g}${b}${b}`.toLowerCase();
-    }
-    if (/^[0-9a-fA-F]{6}$/.test(h))
-        return `#${h}`.toLowerCase();
-    return null;
-}
-function hexToRgb(hex) {
-    const n = normalizeHex(hex);
-    if (!n)
-        return null;
-    const v = n.slice(1);
-    const r = parseInt(v.slice(0, 2), 16);
-    const g = parseInt(v.slice(2, 4), 16);
-    const b = parseInt(v.slice(4, 6), 16);
-    return { r, g, b };
-}
-function rgbToHex({ r, g, b }) {
-    const to = (x) => clamp(Math.round(x), 0, 255).toString(16).padStart(2, '0');
-    return `#${to(r)}${to(g)}${to(b)}`;
-}
-function rgbToHsl({ r, g, b }) {
-    const rn = r / 255;
-    const gn = g / 255;
-    const bn = b / 255;
-    const max = Math.max(rn, gn, bn);
-    const min = Math.min(rn, gn, bn);
-    const d = max - min;
-    let h = 0;
-    let s = 0;
-    const l = (max + min) / 2;
-    if (d !== 0) {
-        s = d / (1 - Math.abs(2 * l - 1));
-        switch (max) {
-            case rn:
-                h = ((gn - bn) / d) % 6;
-                break;
-            case gn:
-                h = (bn - rn) / d + 2;
-                break;
-            case bn:
-                h = (rn - gn) / d + 4;
-                break;
-        }
-        h *= 60;
-        if (h < 0)
-            h += 360;
-    }
-    return { h, s, l };
-}
-function hslToRgb({ h, s, l }) {
-    const c = (1 - Math.abs(2 * l - 1)) * s;
-    const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
-    const m = l - c / 2;
-    let rp = 0;
-    let gp = 0;
-    let bp = 0;
-    if (h >= 0 && h < 60) {
-        rp = c;
-        gp = x;
-        bp = 0;
-    }
-    else if (h >= 60 && h < 120) {
-        rp = x;
-        gp = c;
-        bp = 0;
-    }
-    else if (h >= 120 && h < 180) {
-        rp = 0;
-        gp = c;
-        bp = x;
-    }
-    else if (h >= 180 && h < 240) {
-        rp = 0;
-        gp = x;
-        bp = c;
-    }
-    else if (h >= 240 && h < 300) {
-        rp = x;
-        gp = 0;
-        bp = c;
-    }
-    else {
-        rp = c;
-        gp = 0;
-        bp = x;
-    }
-    return {
-        r: (rp + m) * 255,
-        g: (gp + m) * 255,
-        b: (bp + m) * 255,
-    };
-}
-function lighten(hex, amount) {
-    const rgb = hexToRgb(hex);
-    if (!rgb)
-        return hex;
-    const hsl = rgbToHsl(rgb);
-    const next = { ...hsl, l: clamp(hsl.l + amount, 0, 1) };
-    return rgbToHex(hslToRgb(next));
-}
-function darken(hex, amount) {
-    const rgb = hexToRgb(hex);
-    if (!rgb)
-        return hex;
-    const hsl = rgbToHsl(rgb);
-    const next = { ...hsl, l: clamp(hsl.l - amount, 0, 1) };
-    return rgbToHex(hslToRgb(next));
-}
-function computePrimaryFromBase(baseHex) {
-    const normalized = normalizeHex(baseHex);
-    if (!normalized)
-        return null;
-    return {
-        default: normalized,
-        hover: darken(normalized, 0.10),
-        dark: darken(normalized, 0.20),
-        light: lighten(normalized, 0.42),
-    };
-}
-function primaryOverrideFromHex(primaryColor) {
-    if (!primaryColor)
-        return undefined;
-    const primary = computePrimaryFromBase(primaryColor);
-    if (!primary)
-        return undefined;
-    return { primary };
-}
 /**
  * Dark theme
  */
@@ -198,25 +56,6 @@ export function useThemeTokens() {
     return useTheme().theme;
 }
 /**
- * Merge color overrides into base colors
- */
-function mergeColors(base, overrides) {
-    if (!overrides)
-        return base;
-    return {
-        bg: { ...base.bg, ...overrides.bg },
-        border: { ...base.border, ...overrides.border },
-        text: { ...base.text, ...overrides.text },
-        primary: { ...base.primary, ...overrides.primary },
-        secondary: { ...base.secondary, ...overrides.secondary },
-        accent: { ...base.accent, ...overrides.accent },
-        success: { ...base.success, ...overrides.success },
-        warning: { ...base.warning, ...overrides.warning },
-        error: { ...base.error, ...overrides.error },
-        info: { ...base.info, ...overrides.info },
-    };
-}
-/**
  * Get the default theme from config or DOM
  * Used for SSR-safe theme initialization
  */
@@ -249,35 +88,7 @@ export function getConfiguredTheme() {
 /**
  * Theme Provider Component
  */
-export function ThemeProvider({ children, defaultTheme = 'dark', storageKey = 'hit-ui-theme', colorOverrides, darkColorOverrides, lightColorOverrides, }) {
-    // HIT config-driven primary color.
-    // HitProvider may populate window.__HIT_CONFIG after initial render, so we re-check on mount.
-    const [configuredPrimaryColor, setConfiguredPrimaryColor] = useState(() => {
-        if (typeof window === 'undefined')
-            return null;
-        const win = window;
-        return win.__HIT_CONFIG?.branding?.primaryColor || null;
-    });
-    useEffect(() => {
-        if (typeof window === 'undefined')
-            return;
-        let cancelled = false;
-        let attempts = 0;
-        const poll = () => {
-            if (cancelled)
-                return;
-            const win = window;
-            const next = win.__HIT_CONFIG?.branding?.primaryColor || null;
-            setConfiguredPrimaryColor((prev) => (prev === next ? prev : next));
-            // If config isn't ready yet, retry briefly.
-            if (!next && attempts < 30) {
-                attempts += 1;
-                setTimeout(poll, 50);
-            }
-        };
-        poll();
-        return () => { cancelled = true; };
-    }, []);
+export function ThemeProvider({ children, defaultTheme = 'dark', storageKey = 'hit-ui-theme', }) {
     // Initialize from DOM first (set by blocking script in layout.tsx) to prevent flash.
     // Falls back to localStorage, then defaultTheme.
     const [themeName, setThemeName] = useState(() => {
@@ -336,18 +147,7 @@ export function ThemeProvider({ children, defaultTheme = 'dark', storageKey = 'h
     const toggleTheme = useCallback(() => {
         setTheme(themeName === 'dark' ? 'light' : 'dark');
     }, [themeName, setTheme]);
-    // Build theme with color overrides
-    const theme = React.useMemo(() => {
-        const baseTheme = themeName === 'dark' ? darkTheme : lightTheme;
-        const themeSpecificOverrides = themeName === 'dark' ? darkColorOverrides : lightColorOverrides;
-        const configPrimaryOverride = primaryOverrideFromHex(configuredPrimaryColor);
-        // Merge: base colors -> config primary -> global overrides -> theme-specific overrides
-        const mergedColors = mergeColors(mergeColors(mergeColors(baseTheme.colors, configPrimaryOverride), colorOverrides), themeSpecificOverrides);
-        return {
-            ...baseTheme,
-            colors: mergedColors,
-        };
-    }, [themeName, configuredPrimaryColor, colorOverrides, darkColorOverrides, lightColorOverrides]);
+    const theme = themeName === 'dark' ? darkTheme : lightTheme;
     const value = {
         theme,
         setTheme,
