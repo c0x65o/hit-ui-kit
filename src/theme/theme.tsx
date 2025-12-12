@@ -87,6 +87,33 @@ export function useThemeTokens(): Theme {
 }
 
 /**
+ * Deep partial type for color overrides
+ */
+type DeepPartial<T> = {
+  [P in keyof T]?: T[P] extends object ? DeepPartial<T[P]> : T[P];
+};
+
+/**
+ * Merge color overrides into base colors
+ */
+function mergeColors(base: ColorTokens, overrides?: DeepPartial<ColorTokens>): ColorTokens {
+  if (!overrides) return base;
+  
+  return {
+    bg: { ...base.bg, ...overrides.bg },
+    border: { ...base.border, ...overrides.border },
+    text: { ...base.text, ...overrides.text },
+    primary: { ...base.primary, ...overrides.primary },
+    secondary: { ...base.secondary, ...overrides.secondary },
+    accent: { ...base.accent, ...overrides.accent },
+    success: { ...base.success, ...overrides.success },
+    warning: { ...base.warning, ...overrides.warning },
+    error: { ...base.error, ...overrides.error },
+    info: { ...base.info, ...overrides.info },
+  };
+}
+
+/**
  * Theme Provider Props
  */
 interface ThemeProviderProps {
@@ -94,6 +121,12 @@ interface ThemeProviderProps {
   defaultTheme?: 'dark' | 'light';
   /** Storage key for persisting theme preference */
   storageKey?: string;
+  /** Custom color overrides (applied to both light and dark themes) */
+  colorOverrides?: DeepPartial<ColorTokens>;
+  /** Custom color overrides for dark theme only */
+  darkColorOverrides?: DeepPartial<ColorTokens>;
+  /** Custom color overrides for light theme only */
+  lightColorOverrides?: DeepPartial<ColorTokens>;
 }
 
 /**
@@ -131,6 +164,9 @@ export function ThemeProvider({
   children,
   defaultTheme = 'dark',
   storageKey = 'hit-ui-theme',
+  colorOverrides,
+  darkColorOverrides,
+  lightColorOverrides,
 }: ThemeProviderProps): React.ReactElement {
   // Initialize from DOM first (set by blocking script in layout.tsx) to prevent flash.
   // Falls back to localStorage, then defaultTheme.
@@ -195,7 +231,22 @@ export function ThemeProvider({
     setTheme(themeName === 'dark' ? 'light' : 'dark');
   }, [themeName, setTheme]);
 
-  const theme = themeName === 'dark' ? darkTheme : lightTheme;
+  // Build theme with color overrides
+  const theme: Theme = React.useMemo(() => {
+    const baseTheme = themeName === 'dark' ? darkTheme : lightTheme;
+    const themeSpecificOverrides = themeName === 'dark' ? darkColorOverrides : lightColorOverrides;
+    
+    // Merge: base colors -> global overrides -> theme-specific overrides
+    const mergedColors = mergeColors(
+      mergeColors(baseTheme.colors, colorOverrides),
+      themeSpecificOverrides
+    );
+    
+    return {
+      ...baseTheme,
+      colors: mergedColors,
+    };
+  }, [themeName, colorOverrides, darkColorOverrides, lightColorOverrides]);
 
   const value: ThemeContextValue = {
     theme,

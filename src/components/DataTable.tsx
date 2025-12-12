@@ -25,6 +25,7 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
+  RefreshCw,
 } from 'lucide-react';
 import { useThemeTokens } from '../theme/index.js';
 import { styles } from './utils';
@@ -74,6 +75,7 @@ export function DataTable<TData extends Record<string, unknown>>({
   page: externalPage,
   onPageChange,
   manualPagination = false,
+  onRefresh,
 }: DataTableProps<TData>) {
   const { colors, textStyles: ts, spacing } = useThemeTokens();
   
@@ -209,7 +211,7 @@ export function DataTable<TData extends Record<string, unknown>>({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.lg }}>
       {/* Toolbar */}
-      {(searchable || exportable || showColumnVisibility) && (
+      {(searchable || exportable || showColumnVisibility || onRefresh) && (
         <div style={styles({
           display: 'flex',
           gap: spacing.md,
@@ -252,6 +254,24 @@ export function DataTable<TData extends Record<string, unknown>>({
           )}
 
           <div style={{ display: 'flex', gap: spacing.sm }}>
+            {onRefresh && (
+              <Button 
+                variant="secondary" 
+                size="sm" 
+                onClick={onRefresh}
+                disabled={loading}
+              >
+                <RefreshCw 
+                  size={16} 
+                  style={{ 
+                    marginRight: spacing.xs,
+                    animation: loading ? 'spin 1s linear infinite' : 'none',
+                  }} 
+                />
+                Refresh
+              </Button>
+            )}
+
             {showColumnVisibility && (
               <Dropdown
                 trigger={

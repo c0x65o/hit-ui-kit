@@ -56,6 +56,25 @@ export function useThemeTokens() {
     return useTheme().theme;
 }
 /**
+ * Merge color overrides into base colors
+ */
+function mergeColors(base, overrides) {
+    if (!overrides)
+        return base;
+    return {
+        bg: { ...base.bg, ...overrides.bg },
+        border: { ...base.border, ...overrides.border },
+        text: { ...base.text, ...overrides.text },
+        primary: { ...base.primary, ...overrides.primary },
+        secondary: { ...base.secondary, ...overrides.secondary },
+        accent: { ...base.accent, ...overrides.accent },
+        success: { ...base.success, ...overrides.success },
+        warning: { ...base.warning, ...overrides.warning },
+        error: { ...base.error, ...overrides.error },
+        info: { ...base.info, ...overrides.info },
+    };
+}
+/**
  * Get the default theme from config or DOM
  * Used for SSR-safe theme initialization
  */
@@ -88,7 +107,7 @@ export function getConfiguredTheme() {
 /**
  * Theme Provider Component
  */
-export function ThemeProvider({ children, defaultTheme = 'dark', storageKey = 'hit-ui-theme', }) {
+export function ThemeProvider({ children, defaultTheme = 'dark', storageKey = 'hit-ui-theme', colorOverrides, darkColorOverrides, lightColorOverrides, }) {
     // Initialize from DOM first (set by blocking script in layout.tsx) to prevent flash.
     // Falls back to localStorage, then defaultTheme.
     const [themeName, setThemeName] = useState(() => {
@@ -147,7 +166,17 @@ export function ThemeProvider({ children, defaultTheme = 'dark', storageKey = 'h
     const toggleTheme = useCallback(() => {
         setTheme(themeName === 'dark' ? 'light' : 'dark');
     }, [themeName, setTheme]);
-    const theme = themeName === 'dark' ? darkTheme : lightTheme;
+    // Build theme with color overrides
+    const theme = React.useMemo(() => {
+        const baseTheme = themeName === 'dark' ? darkTheme : lightTheme;
+        const themeSpecificOverrides = themeName === 'dark' ? darkColorOverrides : lightColorOverrides;
+        // Merge: base colors -> global overrides -> theme-specific overrides
+        const mergedColors = mergeColors(mergeColors(baseTheme.colors, colorOverrides), themeSpecificOverrides);
+        return {
+            ...baseTheme,
+            colors: mergedColors,
+        };
+    }, [themeName, colorOverrides, darkColorOverrides, lightColorOverrides]);
     const value = {
         theme,
         setTheme,

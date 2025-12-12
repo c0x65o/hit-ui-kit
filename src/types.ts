@@ -124,6 +124,7 @@ export interface DataTableProps<TData extends Record<string, unknown> = Record<s
   page?: number;
   onPageChange?: (page: number) => void;
   manualPagination?: boolean;
+  onRefresh?: () => void;
 }
 
 export interface BadgeProps {
