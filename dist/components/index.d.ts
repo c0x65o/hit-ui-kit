@@ -19,6 +19,7 @@ export { Badge } from './Badge';
 export { Avatar } from './Avatar';
 export { Alert } from './Alert';
 export { Modal } from './Modal';
+export { AlertDialog } from './AlertDialog';
 export { Spinner } from './Spinner';
 export { EmptyState } from './EmptyState';
 export { Tabs } from './Tabs';

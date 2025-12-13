@@ -60,6 +60,8 @@ export type { UiKit, PageProps, CardProps, ButtonProps, InputProps, TextAreaProp
 export { ThemeProvider, ConditionalThemeProvider, useTheme, useThemeContext, useThemeTokens, getConfiguredTheme, darkTheme, lightTheme, type Theme, } from './theme';
 export * from './tokens';
 export { defaultKit } from './kit';
-export { Page, Card, Button, Input, TextArea, Select, Checkbox, Table, DataTable, Badge, Avatar, Alert, Modal, Spinner, EmptyState, Tabs, Dropdown, AuthLayout, AuthCard, FormInput, cn, styles, } from './components';
+export { useAlertDialog } from './hooks/useAlertDialog';
+export type { AlertDialogOptions, AlertDialogState } from './hooks/useAlertDialog';
+export { Page, Card, Button, Input, TextArea, Select, Checkbox, Table, DataTable, Badge, Avatar, Alert, Modal, AlertDialog, Spinner, EmptyState, Tabs, Dropdown, AuthLayout, AuthCard, FormInput, cn, styles, } from './components';
 export type { AuthLayoutProps, AuthCardProps, FormInputProps } from './components';
 //# sourceMappingURL=index.d.ts.map

@@ -127,6 +127,18 @@ export interface ModalProps {
     size?: 'sm' | 'md' | 'lg' | 'xl';
     children: React.ReactNode;
 }
+export interface AlertDialogProps {
+    open: boolean;
+    onClose: () => void;
+    variant?: 'success' | 'warning' | 'error' | 'info';
+    title?: string;
+    message: React.ReactNode;
+    confirmText?: string;
+    cancelText?: string;
+    onConfirm?: () => void;
+    onCancel?: () => void;
+    size?: 'sm' | 'md' | 'lg' | 'xl';
+}
 export interface SpinnerProps {
     size?: 'sm' | 'md' | 'lg';
 }
@@ -170,6 +182,7 @@ export interface UiKit {
     Avatar: React.ComponentType<AvatarProps>;
     Alert: React.ComponentType<AlertProps>;
     Modal: React.ComponentType<ModalProps>;
+    AlertDialog: React.ComponentType<AlertDialogProps>;
     Spinner: React.ComponentType<SpinnerProps>;
     EmptyState: React.ComponentType<EmptyStateProps>;
     Tabs: React.ComponentType<TabsProps>;

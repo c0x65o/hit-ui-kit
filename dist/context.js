@@ -60,6 +60,7 @@ export function createKit(partial) {
         Avatar: partial.Avatar ?? notImplemented('Avatar'),
         Alert: partial.Alert ?? notImplemented('Alert'),
         Modal: partial.Modal ?? notImplemented('Modal'),
+        AlertDialog: partial.AlertDialog ?? notImplemented('AlertDialog'),
         Spinner: partial.Spinner ?? notImplemented('Spinner'),
         EmptyState: partial.EmptyState ?? notImplemented('EmptyState'),
         Tabs: partial.Tabs ?? notImplemented('Tabs'),

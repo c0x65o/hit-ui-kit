@@ -12,6 +12,7 @@ import { Badge } from './components/Badge';
 import { Avatar } from './components/Avatar';
 import { Alert } from './components/Alert';
 import { Modal } from './components/Modal';
+import { AlertDialog } from './components/AlertDialog';
 import { Spinner } from './components/Spinner';
 import { EmptyState } from './components/EmptyState';
 import { Tabs } from './components/Tabs';
@@ -48,6 +49,7 @@ export const defaultKit = {
     Avatar,
     Alert,
     Modal,
+    AlertDialog,
     Spinner,
     EmptyState,
     Tabs,

@@ -93,6 +93,7 @@ export function createKit(partial) {
         Avatar: partial.Avatar ?? notImplemented('Avatar'),
         Alert: partial.Alert ?? notImplemented('Alert'),
         Modal: partial.Modal ?? notImplemented('Modal'),
+        AlertDialog: partial.AlertDialog ?? notImplemented('AlertDialog'),
         Spinner: partial.Spinner ?? notImplemented('Spinner'),
         EmptyState: partial.EmptyState ?? notImplemented('EmptyState'),
         Tabs: partial.Tabs ?? notImplemented('Tabs'),
@@ -105,8 +106,10 @@ export { ThemeProvider, ConditionalThemeProvider, useTheme, useThemeContext, use
 export * from './tokens';
 // Default Kit
 export { defaultKit } from './kit';
+// Hooks
+export { useAlertDialog } from './hooks/useAlertDialog';
 // Components (for direct imports)
-export { Page, Card, Button, Input, TextArea, Select, Checkbox, Table, DataTable, Badge, Avatar, Alert, Modal, Spinner, EmptyState, Tabs, Dropdown, 
+export { Page, Card, Button, Input, TextArea, Select, Checkbox, Table, DataTable, Badge, Avatar, Alert, Modal, AlertDialog, Spinner, EmptyState, Tabs, Dropdown, 
 // Auth-specific
 AuthLayout, AuthCard, FormInput, 
 // Utils
