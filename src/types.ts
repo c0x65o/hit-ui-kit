@@ -14,6 +14,8 @@ export interface PageProps {
   title?: string;
   description?: string;
   actions?: React.ReactNode;
+  breadcrumbs?: BreadcrumbItem[];
+  onNavigate?: (path: string) => void;
   children: React.ReactNode;
 }
 
@@ -205,6 +207,32 @@ export interface DropdownProps {
   align?: 'left' | 'right';
 }
 
+export interface BreadcrumbItem {
+  label: string;
+  href?: string;
+  icon?: React.ReactNode;
+}
+
+export interface BreadcrumbProps {
+  items: BreadcrumbItem[];
+  onNavigate?: (path: string) => void;
+  showHome?: boolean;
+  homeHref?: string;
+}
+
+// =============================================================================
+// HELP / TOOLTIPS
+// =============================================================================
+
+export interface HelpProps {
+  content: React.ReactNode;
+  title?: string;
+  position?: 'top' | 'bottom' | 'left' | 'right';
+  trigger?: 'hover' | 'click';
+  icon?: React.ReactNode;
+  size?: 'sm' | 'md' | 'lg';
+}
+
 // =============================================================================
 // UI KIT INTERFACE
 // =============================================================================
@@ -237,5 +265,9 @@ export interface UiKit {
   // Navigation
   Tabs: React.ComponentType<TabsProps>;
   Dropdown: React.ComponentType<DropdownProps>;
+  Breadcrumb: React.ComponentType<BreadcrumbProps>;
+
+  // Help
+  Help: React.ComponentType<HelpProps>;
 }
 

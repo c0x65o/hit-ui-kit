@@ -106,9 +106,9 @@ export function createKit(partial: Partial<UiKit>): UiKit {
     TextArea: partial.TextArea ?? notImplemented('TextArea'),
     Select: partial.Select ?? notImplemented('Select'),
     Checkbox: partial.Checkbox ?? notImplemented('Checkbox'),
-  Table: partial.Table ?? notImplemented('Table'),
-  DataTable: partial.DataTable ?? notImplemented('DataTable'),
-  Badge: partial.Badge ?? notImplemented('Badge'),
+    Table: partial.Table ?? notImplemented('Table'),
+    DataTable: partial.DataTable ?? notImplemented('DataTable'),
+    Badge: partial.Badge ?? notImplemented('Badge'),
     Avatar: partial.Avatar ?? notImplemented('Avatar'),
     Alert: partial.Alert ?? notImplemented('Alert'),
     Modal: partial.Modal ?? notImplemented('Modal'),
@@ -117,6 +117,8 @@ export function createKit(partial: Partial<UiKit>): UiKit {
     EmptyState: partial.EmptyState ?? notImplemented('EmptyState'),
     Tabs: partial.Tabs ?? notImplemented('Tabs'),
     Dropdown: partial.Dropdown ?? notImplemented('Dropdown'),
+    Breadcrumb: partial.Breadcrumb ?? notImplemented('Breadcrumb'),
+    Help: partial.Help ?? notImplemented('Help'),
   };
 }
 
@@ -145,6 +147,9 @@ export type {
   EmptyStateProps,
   TabsProps,
   DropdownProps,
+  BreadcrumbProps,
+  BreadcrumbItem,
+  HelpProps,
 } from './types';
 
 // Theme
@@ -190,6 +195,8 @@ export {
   EmptyState,
   Tabs,
   Dropdown,
+  Breadcrumb,
+  Help,
   // Auth-specific
   AuthLayout,
   AuthCard,

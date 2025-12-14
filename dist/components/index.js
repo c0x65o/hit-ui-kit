@@ -29,6 +29,9 @@ export { EmptyState } from './EmptyState';
 // Navigation
 export { Tabs } from './Tabs';
 export { Dropdown } from './Dropdown';
+export { Breadcrumb } from './Breadcrumb';
+// Help
+export { Help } from './Help';
 // Utilities
 export { cn, styles } from './utils';
 //# sourceMappingURL=index.js.map

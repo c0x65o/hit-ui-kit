@@ -24,5 +24,7 @@ export { Spinner } from './Spinner';
 export { EmptyState } from './EmptyState';
 export { Tabs } from './Tabs';
 export { Dropdown } from './Dropdown';
+export { Breadcrumb } from './Breadcrumb';
+export { Help } from './Help';
 export { cn, styles } from './utils';
 //# sourceMappingURL=index.d.ts.map

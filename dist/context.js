@@ -65,6 +65,8 @@ export function createKit(partial) {
         EmptyState: partial.EmptyState ?? notImplemented('EmptyState'),
         Tabs: partial.Tabs ?? notImplemented('Tabs'),
         Dropdown: partial.Dropdown ?? notImplemented('Dropdown'),
+        Breadcrumb: partial.Breadcrumb ?? notImplemented('Breadcrumb'),
+        Help: partial.Help ?? notImplemented('Help'),
     };
 }
 //# sourceMappingURL=context.js.map

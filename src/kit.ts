@@ -25,6 +25,8 @@ import { Spinner } from './components/Spinner';
 import { EmptyState } from './components/EmptyState';
 import { Tabs } from './components/Tabs';
 import { Dropdown } from './components/Dropdown';
+import { Breadcrumb } from './components/Breadcrumb';
+import { Help } from './components/Help';
 
 /**
  * Default UI Kit using themed components.
@@ -63,5 +65,7 @@ export const defaultKit: UiKit = {
   EmptyState,
   Tabs,
   Dropdown,
+  Breadcrumb,
+  Help,
 };
 

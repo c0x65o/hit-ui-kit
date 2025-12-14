@@ -8,6 +8,8 @@ export interface PageProps {
     title?: string;
     description?: string;
     actions?: React.ReactNode;
+    breadcrumbs?: BreadcrumbItem[];
+    onNavigate?: (path: string) => void;
     children: React.ReactNode;
 }
 export interface CardProps {
@@ -168,6 +170,25 @@ export interface DropdownProps {
     }[];
     align?: 'left' | 'right';
 }
+export interface BreadcrumbItem {
+    label: string;
+    href?: string;
+    icon?: React.ReactNode;
+}
+export interface BreadcrumbProps {
+    items: BreadcrumbItem[];
+    onNavigate?: (path: string) => void;
+    showHome?: boolean;
+    homeHref?: string;
+}
+export interface HelpProps {
+    content: React.ReactNode;
+    title?: string;
+    position?: 'top' | 'bottom' | 'left' | 'right';
+    trigger?: 'hover' | 'click';
+    icon?: React.ReactNode;
+    size?: 'sm' | 'md' | 'lg';
+}
 export interface UiKit {
     Page: React.ComponentType<PageProps>;
     Card: React.ComponentType<CardProps>;
@@ -187,5 +208,7 @@ export interface UiKit {
     EmptyState: React.ComponentType<EmptyStateProps>;
     Tabs: React.ComponentType<TabsProps>;
     Dropdown: React.ComponentType<DropdownProps>;
+    Breadcrumb: React.ComponentType<BreadcrumbProps>;
+    Help: React.ComponentType<HelpProps>;
 }
 //# sourceMappingURL=types.d.ts.map

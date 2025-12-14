@@ -98,6 +98,8 @@ export function createKit(partial) {
         EmptyState: partial.EmptyState ?? notImplemented('EmptyState'),
         Tabs: partial.Tabs ?? notImplemented('Tabs'),
         Dropdown: partial.Dropdown ?? notImplemented('Dropdown'),
+        Breadcrumb: partial.Breadcrumb ?? notImplemented('Breadcrumb'),
+        Help: partial.Help ?? notImplemented('Help'),
     };
 }
 // Theme
@@ -109,7 +111,7 @@ export { defaultKit } from './kit';
 // Hooks
 export { useAlertDialog } from './hooks/useAlertDialog';
 // Components (for direct imports)
-export { Page, Card, Button, Input, TextArea, Select, Checkbox, Table, DataTable, Badge, Avatar, Alert, Modal, AlertDialog, Spinner, EmptyState, Tabs, Dropdown, 
+export { Page, Card, Button, Input, TextArea, Select, Checkbox, Table, DataTable, Badge, Avatar, Alert, Modal, AlertDialog, Spinner, EmptyState, Tabs, Dropdown, Breadcrumb, Help, 
 // Auth-specific
 AuthLayout, AuthCard, FormInput, 
 // Utils
