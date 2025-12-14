@@ -63,7 +63,9 @@ export function Tabs({ tabs, activeTab, onChange, value, onValueChange }: Extend
                     ? `2px solid ${colors.primary.default}`
                     : '2px solid transparent',
                   background: 'none',
-                  border: 'none',
+                  borderTop: 'none',
+                  borderLeft: 'none',
+                  borderRight: 'none',
                   cursor: 'pointer',
                   transition: 'all 150ms ease',
                 })}

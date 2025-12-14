@@ -5,7 +5,7 @@
  */
 import React from 'react';
 export interface PageProps {
-    title?: string;
+    title?: React.ReactNode;
     description?: string;
     actions?: React.ReactNode;
     breadcrumbs?: BreadcrumbItem[];
@@ -16,6 +16,9 @@ export interface CardProps {
     title?: string;
     description?: string;
     footer?: React.ReactNode;
+    className?: string;
+    onClick?: (e: React.MouseEvent<HTMLDivElement>) => void;
+    style?: React.CSSProperties;
     children: React.ReactNode;
 }
 export interface ButtonProps {
@@ -25,11 +28,14 @@ export interface ButtonProps {
     disabled?: boolean;
     type?: 'button' | 'submit' | 'reset';
     onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
+    className?: string;
+    title?: string;
+    'aria-label'?: string;
     children: React.ReactNode;
 }
 export interface InputProps {
     label?: string;
-    type?: 'text' | 'email' | 'password' | 'number' | 'tel' | 'url' | 'search';
+    type?: 'text' | 'email' | 'password' | 'number' | 'tel' | 'url' | 'search' | 'date' | 'datetime-local';
     placeholder?: string;
     value: string;
     onChange: (value: string) => void;
@@ -71,7 +77,7 @@ export interface CheckboxProps {
 export interface TableColumn {
     key: string;
     label: string;
-    render?: (value: unknown, row: Record<string, unknown>, index: number) => React.ReactNode;
+    render?: (value: any, row: any, index: number) => React.ReactNode;
     width?: string;
     align?: 'left' | 'center' | 'right';
 }
@@ -108,6 +114,8 @@ export interface DataTableProps<TData extends Record<string, unknown> = Record<s
 }
 export interface BadgeProps {
     variant?: 'default' | 'success' | 'warning' | 'error' | 'info';
+    className?: string;
+    style?: React.CSSProperties;
     children: React.ReactNode;
 }
 export interface AvatarProps {
@@ -119,10 +127,12 @@ export interface AlertProps {
     variant: 'success' | 'warning' | 'error' | 'info';
     title?: string;
     onClose?: () => void;
+    className?: string;
     children: React.ReactNode;
 }
 export interface ModalProps {
-    open: boolean;
+    open?: boolean;
+    isOpen?: boolean;
     onClose: () => void;
     title?: string;
     description?: string;
@@ -143,6 +153,7 @@ export interface AlertDialogProps {
 }
 export interface SpinnerProps {
     size?: 'sm' | 'md' | 'lg';
+    className?: string;
 }
 export interface EmptyStateProps {
     icon?: React.ReactNode;
@@ -152,12 +163,15 @@ export interface EmptyStateProps {
 }
 export interface TabsProps {
     tabs: {
-        id: string;
+        id?: string;
+        value?: string;
         label: string;
-        content: React.ReactNode;
+        content?: React.ReactNode;
     }[];
     activeTab?: string;
     onChange?: (tabId: string) => void;
+    value?: string;
+    onValueChange?: (tabId: string) => void;
 }
 export interface DropdownProps {
     trigger: React.ReactNode;

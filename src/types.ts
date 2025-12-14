@@ -111,6 +111,17 @@ export interface DataTableColumn<TData = Record<string, unknown>> extends TableC
   hideable?: boolean;
 }
 
+export interface GroupConfig<TData = Record<string, unknown>> {
+  /** Field key to group by */
+  field: string;
+  /** Custom sort order for groups. Can be an array of group values in desired order, or a function that returns sort order */
+  sortOrder?: string[] | ((groupValue: unknown, groupData: TData[]) => number);
+  /** Custom label renderer for group headers */
+  renderLabel?: (groupValue: unknown, groupData: TData[]) => React.ReactNode;
+  /** Whether groups are collapsed by default */
+  defaultCollapsed?: boolean;
+}
+
 export interface DataTableProps<TData extends Record<string, unknown> = Record<string, unknown>> {
   columns: DataTableColumn<TData>[];
   data: TData[];
@@ -128,6 +139,11 @@ export interface DataTableProps<TData extends Record<string, unknown> = Record<s
   page?: number;
   onPageChange?: (page: number) => void;
   manualPagination?: boolean;
+  // Refresh
+  onRefresh?: () => void;
+  refreshing?: boolean;
+  // Grouping
+  groupBy?: GroupConfig<TData>;
 }
 
 export interface BadgeProps {

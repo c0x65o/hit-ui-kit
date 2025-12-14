@@ -25,6 +25,8 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
+  RefreshCw,
+  ChevronRight as ChevronRightIcon,
 } from 'lucide-react';
 import { useThemeTokens } from '../theme/index.js';
 import { styles } from './utils';
@@ -74,6 +76,11 @@ export function DataTable<TData extends Record<string, unknown>>({
   page: externalPage,
   onPageChange,
   manualPagination = false,
+  // Refresh
+  onRefresh,
+  refreshing = false,
+  // Grouping
+  groupBy,
 }: DataTableProps<TData>) {
   const { colors, textStyles: ts, spacing } = useThemeTokens();
   
@@ -83,6 +90,11 @@ export function DataTable<TData extends Record<string, unknown>>({
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(initialColumnVisibility || {});
   const [globalFilter, setGlobalFilter] = useState('');
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => {
+    // Initialize collapsed groups if defaultCollapsed is true
+    // We'll populate this after we have data
+    return new Set();
+  });
   
   // Use external page if provided (server-side), otherwise use internal state (client-side)
   const [internalPage, setInternalPage] = useState(0);
@@ -102,6 +114,19 @@ export function DataTable<TData extends Record<string, unknown>>({
       });
     }
   }, [externalPage, manualPagination, pageSize]);
+
+  // Initialize collapsed groups if defaultCollapsed is true
+  useEffect(() => {
+    if (groupBy?.defaultCollapsed && data.length > 0) {
+      const groups = new Set<string | null>();
+      for (const row of data) {
+        const groupValue = row[groupBy.field] ?? null;
+        const groupKey = groupValue === null ? '__null__' : String(groupValue);
+        groups.add(groupKey);
+      }
+      setCollapsedGroups(new Set(Array.from(groups)));
+    }
+  }, [groupBy?.defaultCollapsed, groupBy?.field, data]);
 
   // Convert columns to TanStack Table format
   const tableColumns = useMemo<ColumnDef<TData>[]>(() => {
@@ -155,6 +180,95 @@ export function DataTable<TData extends Record<string, unknown>>({
     globalFilterFn: 'includesString',
   });
 
+  // Grouping logic
+  type GroupedRow = { type: 'group'; groupValue: unknown; groupData: TData[]; groupKey: string } | { type: 'row'; data: TData; index: number };
+  
+  const groupedRows = useMemo<GroupedRow[]>(() => {
+    if (!groupBy) {
+      // No grouping - return flat rows
+      return table.getRowModel().rows.map((row: any, index: number) => ({
+        type: 'row' as const,
+        data: row.original,
+        index: row.index,
+      }));
+    }
+
+    const filteredRows = table.getRowModel().rows;
+    
+    // Group by field
+    const groups = new Map<string | null, TData[]>();
+    for (const row of filteredRows) {
+      const groupValue = row.original[groupBy.field] ?? null;
+      const groupKey = groupValue === null ? '__null__' : String(groupValue);
+      if (!groups.has(groupKey)) {
+        groups.set(groupKey, []);
+      }
+      groups.get(groupKey)!.push(row.original);
+    }
+
+    // Convert to array and sort groups
+    const groupEntries = Array.from(groups.entries()).map(([key, groupData]) => {
+      const groupValue = key === '__null__' ? null : groups.get(key)?.[0]?.[groupBy.field];
+      return { key, groupValue, groupData };
+    });
+
+    // Sort groups according to sortOrder
+    if (groupBy.sortOrder) {
+      if (Array.isArray(groupBy.sortOrder)) {
+        // Array-based sort order
+        const orderMap = new Map(groupBy.sortOrder.map((val, idx) => [String(val), idx]));
+        groupEntries.sort((a, b) => {
+          const aOrder = orderMap.get(a.key) ?? Infinity;
+          const bOrder = orderMap.get(b.key) ?? Infinity;
+          if (aOrder !== Infinity || bOrder !== Infinity) {
+            return aOrder - bOrder;
+          }
+          // If not in sort order array, sort by key
+          return String(a.groupValue ?? '').localeCompare(String(b.groupValue ?? ''));
+        });
+      } else if (typeof groupBy.sortOrder === 'function') {
+        // Function-based sort order
+        groupEntries.sort((a, b) => {
+          const aOrder = groupBy.sortOrder!(a.groupValue, a.groupData);
+          const bOrder = groupBy.sortOrder!(b.groupValue, b.groupData);
+          return aOrder - bOrder;
+        });
+      }
+    } else {
+      // Default: sort by group value
+      groupEntries.sort((a, b) => {
+        if (a.groupValue === null && b.groupValue === null) return 0;
+        if (a.groupValue === null) return 1;
+        if (b.groupValue === null) return -1;
+        return String(a.groupValue).localeCompare(String(b.groupValue));
+      });
+    }
+
+    // Build flat structure with group headers and rows
+    const result: GroupedRow[] = [];
+    for (const { key, groupValue, groupData } of groupEntries) {
+      result.push({
+        type: 'group',
+        groupValue,
+        groupData,
+        groupKey: key,
+      });
+      
+      // Add rows if group is not collapsed
+      if (!collapsedGroups.has(key)) {
+        groupData.forEach((rowData, idx) => {
+          result.push({
+            type: 'row',
+            data: rowData,
+            index: filteredRows.findIndex((r: any) => r.original === rowData),
+          });
+        });
+      }
+    }
+
+    return result;
+  }, [groupBy, table, collapsedGroups]);
+
   // Export to CSV
   const handleExport = () => {
     const visibleColumns = table.getVisibleFlatColumns();
@@ -207,9 +321,16 @@ export function DataTable<TData extends Record<string, unknown>>({
   const hasData = data.length > 0;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.lg }}>
-      {/* Toolbar */}
-      {(searchable || exportable || showColumnVisibility) && (
+    <>
+      <style>{`
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.lg }}>
+        {/* Toolbar */}
+      {(searchable || exportable || showColumnVisibility || onRefresh) && (
         <div style={styles({
           display: 'flex',
           gap: spacing.md,
@@ -252,6 +373,24 @@ export function DataTable<TData extends Record<string, unknown>>({
           )}
 
           <div style={{ display: 'flex', gap: spacing.sm }}>
+            {onRefresh && (
+              <Button 
+                variant="secondary" 
+                size="sm" 
+                onClick={onRefresh}
+                disabled={refreshing || loading}
+              >
+                <RefreshCw 
+                  size={16} 
+                  style={{ 
+                    marginRight: spacing.xs,
+                    animation: (refreshing || loading) ? 'spin 1s linear infinite' : undefined,
+                  }} 
+                />
+                Refresh
+              </Button>
+            )}
+
             {showColumnVisibility && (
               <Dropdown
                 trigger={
@@ -339,39 +478,144 @@ export function DataTable<TData extends Record<string, unknown>>({
               ))}
             </thead>
             <tbody>
-              {table.getRowModel().rows.map((row: any) => (
-                <tr
-                  key={row.id}
-                  onClick={() => onRowClick?.(row.original, row.index)}
-                  style={styles({
-                    borderBottom: `1px solid ${colors.border.subtle}`,
-                    cursor: onRowClick ? 'pointer' : 'default',
-                    transition: 'background-color 150ms ease',
-                  })}
-                  onMouseEnter={(e) => {
-                    if (onRowClick) {
-                      e.currentTarget.style.backgroundColor = colors.bg.elevated;
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = 'transparent';
-                  }}
-                >
-                  {row.getVisibleCells().map((cell: any) => (
-                    <td
-                      key={cell.id}
-                      style={styles({
-                        padding: `${spacing.md} ${spacing.lg}`,
-                        textAlign: (cell.column.columnDef.meta as any)?.align || 'left',
-                        fontSize: ts.body.fontSize,
-                        color: colors.text.secondary,
-                      })}
-                    >
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </td>
-                  ))}
-                </tr>
-              ))}
+              {groupBy ? (
+                // Render grouped rows
+                groupedRows.map((item, idx) => {
+                  if (item.type === 'group') {
+                    const isCollapsed = collapsedGroups.has(item.groupKey);
+                    const groupLabel = groupBy.renderLabel 
+                      ? groupBy.renderLabel(item.groupValue, item.groupData)
+                      : item.groupValue === null 
+                        ? 'No Stage' 
+                        : String(item.groupValue);
+                    
+                    return (
+                      <tr
+                        key={`group-${item.groupKey}`}
+                        style={styles({
+                          backgroundColor: colors.bg.elevated,
+                          borderBottom: `2px solid ${colors.border.default}`,
+                          cursor: 'pointer',
+                        })}
+                        onClick={() => {
+                          const newCollapsed = new Set(collapsedGroups);
+                          if (isCollapsed) {
+                            newCollapsed.delete(item.groupKey);
+                          } else {
+                            newCollapsed.add(item.groupKey);
+                          }
+                          setCollapsedGroups(newCollapsed);
+                        }}
+                      >
+                        <td
+                          colSpan={table.getVisibleFlatColumns().length}
+                          style={styles({
+                            padding: `${spacing.md} ${spacing.lg}`,
+                            fontSize: ts.body.fontSize,
+                            fontWeight: ts.label.fontWeight,
+                            color: colors.text.primary,
+                          })}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm }}>
+                            <ChevronRightIcon
+                              size={16}
+                              style={{
+                                transform: isCollapsed ? 'rotate(0deg)' : 'rotate(90deg)',
+                                transition: 'transform 150ms ease',
+                                color: colors.text.muted,
+                              }}
+                            />
+                            <div style={{ display: 'flex', alignItems: 'center', gap: spacing.xs, flex: 1 }}>
+                              {typeof groupLabel === 'string' ? <span>{groupLabel}</span> : groupLabel}
+                            </div>
+                            <span style={{ color: colors.text.muted, fontSize: ts.bodySmall.fontSize }}>
+                              ({item.groupData.length})
+                            </span>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  } else {
+                    // Regular row - find the corresponding table row
+                    const tableRow = table.getRowModel().rows.find((r: any) => {
+                      // Compare by reference or by ID if available
+                      return r.original === item.data || 
+                             (item.data.id && r.original.id === item.data.id);
+                    });
+                    
+                    if (!tableRow) return null;
+                    
+                    return (
+                      <tr
+                        key={`row-${tableRow.id}-${idx}`}
+                        onClick={() => onRowClick?.(tableRow.original, tableRow.index)}
+                        style={styles({
+                          borderBottom: `1px solid ${colors.border.subtle}`,
+                          cursor: onRowClick ? 'pointer' : 'default',
+                          transition: 'background-color 150ms ease',
+                        })}
+                        onMouseEnter={(e) => {
+                          if (onRowClick) {
+                            e.currentTarget.style.backgroundColor = colors.bg.elevated;
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = 'transparent';
+                        }}
+                      >
+                        {tableRow.getVisibleCells().map((cell: any) => (
+                          <td
+                            key={cell.id}
+                            style={styles({
+                              padding: `${spacing.md} ${spacing.lg}`,
+                              textAlign: (cell.column.columnDef.meta as any)?.align || 'left',
+                              fontSize: ts.body.fontSize,
+                              color: colors.text.secondary,
+                            })}
+                          >
+                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                          </td>
+                        ))}
+                      </tr>
+                    );
+                  }
+                })
+              ) : (
+                // Render non-grouped rows (original behavior)
+                table.getRowModel().rows.map((row: any) => (
+                  <tr
+                    key={row.id}
+                    onClick={() => onRowClick?.(row.original, row.index)}
+                    style={styles({
+                      borderBottom: `1px solid ${colors.border.subtle}`,
+                      cursor: onRowClick ? 'pointer' : 'default',
+                      transition: 'background-color 150ms ease',
+                    })}
+                    onMouseEnter={(e) => {
+                      if (onRowClick) {
+                        e.currentTarget.style.backgroundColor = colors.bg.elevated;
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = 'transparent';
+                    }}
+                  >
+                    {row.getVisibleCells().map((cell: any) => (
+                      <td
+                        key={cell.id}
+                        style={styles({
+                          padding: `${spacing.md} ${spacing.lg}`,
+                          textAlign: (cell.column.columnDef.meta as any)?.align || 'left',
+                          fontSize: ts.body.fontSize,
+                          color: colors.text.secondary,
+                        })}
+                      >
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </td>
+                    ))}
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         )}
@@ -447,6 +691,7 @@ export function DataTable<TData extends Record<string, unknown>>({
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 }

@@ -3,26 +3,36 @@ import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
 import { useState } from 'react';
 import { useThemeTokens } from '../theme/index.js';
 import { styles } from './utils';
-export function Tabs({ tabs, activeTab, onChange }) {
+export function Tabs({ tabs, activeTab, onChange, value, onValueChange }) {
     const { colors, textStyles: ts, spacing } = useThemeTokens();
-    const [localActive, setLocalActive] = useState(activeTab || tabs[0]?.id);
-    const currentTab = activeTab ?? localActive;
+    // Support both id and value properties on tab items
+    const getTabId = (tab) => tab.id ?? tab.value ?? '';
+    // Support both prop naming conventions
+    const controlledValue = value ?? activeTab;
+    const onChangeHandler = onValueChange ?? onChange;
+    const [localActive, setLocalActive] = useState(controlledValue || getTabId(tabs[0]));
+    const currentTab = controlledValue ?? localActive;
     const handleChange = (tabId) => {
         setLocalActive(tabId);
-        onChange?.(tabId);
+        onChangeHandler?.(tabId);
     };
-    return (_jsxs("div", { children: [_jsx("div", { style: styles({ borderBottom: `1px solid ${colors.border.subtle}` }), children: _jsx("nav", { style: styles({ display: 'flex', gap: spacing.lg }), children: tabs.map((tab) => (_jsx("button", { onClick: () => handleChange(tab.id), style: styles({
+    // Check if any tab has content (determines if we render content section)
+    const hasContent = tabs.some(tab => tab.content !== undefined);
+    return (_jsxs("div", { children: [_jsx("div", { style: styles({ borderBottom: `1px solid ${colors.border.subtle}` }), children: _jsx("nav", { style: styles({ display: 'flex', gap: spacing.lg }), children: tabs.map((tab) => {
+                    const tabId = getTabId(tab);
+                    return (_jsx("button", { onClick: () => handleChange(tabId), style: styles({
                             padding: `${spacing.md} ${spacing.xs}`,
                             fontSize: ts.body.fontSize,
                             fontWeight: ts.label.fontWeight,
-                            color: currentTab === tab.id ? colors.primary.default : colors.text.muted,
-                            borderBottom: currentTab === tab.id
+                            color: currentTab === tabId ? colors.primary.default : colors.text.muted,
+                            borderBottom: currentTab === tabId
                                 ? `2px solid ${colors.primary.default}`
                                 : '2px solid transparent',
                             background: 'none',
                             border: 'none',
                             cursor: 'pointer',
                             transition: 'all 150ms ease',
-                        }), children: tab.label }, tab.id))) }) }), _jsx("div", { style: styles({ marginTop: spacing.lg }), children: tabs.find((t) => t.id === currentTab)?.content })] }));
+                        }), children: tab.label }, tabId));
+                }) }) }), hasContent && (_jsx("div", { style: styles({ marginTop: spacing.lg }), children: tabs.find((t) => getTabId(t) === currentTab)?.content }))] }));
 }
 //# sourceMappingURL=Tabs.js.map
