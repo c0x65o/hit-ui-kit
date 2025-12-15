@@ -136,27 +136,25 @@ groupBy, }) {
             }));
         }
         const filteredRows = table.getRowModel().rows;
-        // Group by field - groupKey is always a string (null becomes '__null__')
+        // Group by field
         const groups = new Map();
         for (const row of filteredRows) {
             const groupValue = row.original[groupBy.field] ?? null;
             const groupKey = groupValue === null ? '__null__' : String(groupValue);
             if (!groups.has(groupKey)) {
-                groups.set(groupKey, []);
+                groups.set(groupKey, { groupValue, groupData: [] });
             }
-            groups.get(groupKey).push(row.original);
+            groups.get(groupKey).groupData.push(row.original);
         }
         // Convert to array and sort groups
-        const groupEntries = Array.from(groups.entries()).map(([key, groupData]) => {
-            const groupValue = key === '__null__' ? null : groups.get(key)?.[0]?.[groupBy.field];
+        const groupEntries = Array.from(groups.entries()).map(([key, { groupValue, groupData }]) => {
             return { key, groupValue, groupData };
         });
         // Sort groups according to sortOrder
-        const sortOrderConfig = groupBy.sortOrder;
-        if (sortOrderConfig) {
-            if (Array.isArray(sortOrderConfig)) {
+        if (groupBy.sortOrder) {
+            if (Array.isArray(groupBy.sortOrder)) {
                 // Array-based sort order
-                const orderMap = new Map(sortOrderConfig.map((val, idx) => [String(val), idx]));
+                const orderMap = new Map(groupBy.sortOrder.map((val, idx) => [String(val), idx]));
                 groupEntries.sort((a, b) => {
                     const aOrder = orderMap.get(a.key) ?? Infinity;
                     const bOrder = orderMap.get(b.key) ?? Infinity;
@@ -167,9 +165,9 @@ groupBy, }) {
                     return String(a.groupValue ?? '').localeCompare(String(b.groupValue ?? ''));
                 });
             }
-            else if (typeof sortOrderConfig === 'function') {
+            else if (typeof groupBy.sortOrder === 'function') {
                 // Function-based sort order
-                const sortFn = sortOrderConfig;
+                const sortFn = groupBy.sortOrder;
                 groupEntries.sort((a, b) => {
                     const aOrder = sortFn(a.groupValue, a.groupData);
                     const bOrder = sortFn(b.groupValue, b.groupData);

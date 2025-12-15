@@ -118,13 +118,13 @@ export function DataTable<TData extends Record<string, unknown>>({
   // Initialize collapsed groups if defaultCollapsed is true
   useEffect(() => {
     if (groupBy?.defaultCollapsed && data.length > 0) {
-      const groups = new Set<string | null>();
+      const groups = new Set<string>();
       for (const row of data) {
         const groupValue = row[groupBy.field] ?? null;
         const groupKey = groupValue === null ? '__null__' : String(groupValue);
         groups.add(groupKey);
       }
-      setCollapsedGroups(new Set(Array.from(groups)));
+      setCollapsedGroups(groups);
     }
   }, [groupBy?.defaultCollapsed, groupBy?.field, data]);
 
@@ -196,19 +196,18 @@ export function DataTable<TData extends Record<string, unknown>>({
     const filteredRows = table.getRowModel().rows;
     
     // Group by field
-    const groups = new Map<string | null, TData[]>();
+    const groups = new Map<string, { groupValue: unknown; groupData: TData[] }>();
     for (const row of filteredRows) {
       const groupValue = row.original[groupBy.field] ?? null;
       const groupKey = groupValue === null ? '__null__' : String(groupValue);
       if (!groups.has(groupKey)) {
-        groups.set(groupKey, []);
+        groups.set(groupKey, { groupValue, groupData: [] });
       }
-      groups.get(groupKey)!.push(row.original);
+      groups.get(groupKey)!.groupData.push(row.original);
     }
 
     // Convert to array and sort groups
-    const groupEntries = Array.from(groups.entries()).map(([key, groupData]) => {
-      const groupValue = key === '__null__' ? null : groups.get(key)?.[0]?.[groupBy.field];
+    const groupEntries = Array.from(groups.entries()).map(([key, { groupValue, groupData }]) => {
       return { key, groupValue, groupData };
     });
 
@@ -228,9 +227,10 @@ export function DataTable<TData extends Record<string, unknown>>({
         });
       } else if (typeof groupBy.sortOrder === 'function') {
         // Function-based sort order
+        const sortFn = groupBy.sortOrder;
         groupEntries.sort((a, b) => {
-          const aOrder = groupBy.sortOrder!(a.groupValue, a.groupData);
-          const bOrder = groupBy.sortOrder!(b.groupValue, b.groupData);
+          const aOrder = sortFn(a.groupValue, a.groupData);
+          const bOrder = sortFn(b.groupValue, b.groupData);
           return aOrder - bOrder;
         });
       }
