@@ -695,11 +695,3 @@ export function DataTable<TData extends Record<string, unknown>>({
     </>
   );
 }
-utton>
-          </div>
-        </div>
-      )}
-      </div>
-    </>
-  );
-}
