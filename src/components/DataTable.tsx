@@ -267,7 +267,7 @@ export function DataTable<TData extends Record<string, unknown>>({
     }
 
     return result;
-  }, [groupBy, table, collapsedGroups]);
+  }, [groupBy, table, collapsedGroups, globalFilter, sorting, pagination]);
 
   // Export to CSV
   const handleExport = () => {
@@ -688,6 +688,14 @@ export function DataTable<TData extends Record<string, unknown>>({
             >
               <ChevronsRight size={16} />
             </Button>
+          </div>
+        </div>
+      )}
+      </div>
+    </>
+  );
+}
+utton>
           </div>
         </div>
       )}

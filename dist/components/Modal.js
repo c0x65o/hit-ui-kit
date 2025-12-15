@@ -3,10 +3,9 @@ import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
 import { X } from 'lucide-react';
 import { useThemeTokens } from '../theme/index.js';
 import { styles } from './utils';
-export function Modal({ open, isOpen, onClose, title, description, size = 'md', children }) {
+export function Modal({ open, onClose, title, description, size = 'md', children }) {
     const { colors, radius, textStyles: ts, spacing, shadows } = useThemeTokens();
-    const resolvedOpen = open ?? isOpen;
-    if (!resolvedOpen)
+    if (!open)
         return null;
     const getSizeStyles = () => {
         switch (size) {

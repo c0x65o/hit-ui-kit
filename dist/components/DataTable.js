@@ -2,7 +2,7 @@
 import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-runtime";
 import { useState, useMemo, useEffect } from 'react';
 import { useReactTable, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, flexRender, } from '@tanstack/react-table';
-import { ChevronDown, ChevronUp, ChevronsUpDown, Download, Eye, EyeOff, Search, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, } from 'lucide-react';
+import { ChevronDown, ChevronUp, ChevronsUpDown, Download, Eye, EyeOff, Search, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, RefreshCw, ChevronRight as ChevronRightIcon, } from 'lucide-react';
 import { useThemeTokens } from '../theme/index.js';
 import { styles } from './utils';
 import { Button } from './Button';
@@ -33,12 +33,21 @@ import { Dropdown } from './Dropdown';
  */
 export function DataTable({ columns, data, searchable = true, exportable = true, showColumnVisibility = true, onRowClick, emptyMessage = 'No data available', loading = false, pageSize = 10, initialSorting, initialColumnVisibility, 
 // Server-side pagination
-total, page: externalPage, onPageChange, manualPagination = false, }) {
+total, page: externalPage, onPageChange, manualPagination = false, 
+// Refresh
+onRefresh, refreshing = false, 
+// Grouping
+groupBy, }) {
     const { colors, textStyles: ts, spacing } = useThemeTokens();
     const [sorting, setSorting] = useState(initialSorting?.map((s) => ({ id: s.id, desc: s.desc ?? false })) || []);
     const [columnFilters, setColumnFilters] = useState([]);
     const [columnVisibility, setColumnVisibility] = useState(initialColumnVisibility || {});
     const [globalFilter, setGlobalFilter] = useState('');
+    const [collapsedGroups, setCollapsedGroups] = useState(() => {
+        // Initialize collapsed groups if defaultCollapsed is true
+        // We'll populate this after we have data
+        return new Set();
+    });
     // Use external page if provided (server-side), otherwise use internal state (client-side)
     const [internalPage, setInternalPage] = useState(0);
     const currentPage = manualPagination && externalPage !== undefined ? externalPage - 1 : internalPage;
@@ -55,6 +64,18 @@ total, page: externalPage, onPageChange, manualPagination = false, }) {
             });
         }
     }, [externalPage, manualPagination, pageSize]);
+    // Initialize collapsed groups if defaultCollapsed is true
+    useEffect(() => {
+        if (groupBy?.defaultCollapsed && data.length > 0) {
+            const groups = new Set();
+            for (const row of data) {
+                const groupValue = row[groupBy.field] ?? null;
+                const groupKey = groupValue === null ? '__null__' : String(groupValue);
+                groups.add(groupKey);
+            }
+            setCollapsedGroups(groups);
+        }
+    }, [groupBy?.defaultCollapsed, groupBy?.field, data]);
     // Convert columns to TanStack Table format
     const tableColumns = useMemo(() => {
         return columns.map((col) => ({
@@ -105,6 +126,91 @@ total, page: externalPage, onPageChange, manualPagination = false, }) {
         pageCount: manualPagination && total !== undefined ? Math.ceil(total / pageSize) : undefined,
         globalFilterFn: 'includesString',
     });
+    const groupedRows = useMemo(() => {
+        if (!groupBy) {
+            // No grouping - return flat rows
+            return table.getRowModel().rows.map((row, index) => ({
+                type: 'row',
+                data: row.original,
+                index: row.index,
+            }));
+        }
+        const filteredRows = table.getRowModel().rows;
+        // Group by field - groupKey is always a string (null becomes '__null__')
+        const groups = new Map();
+        for (const row of filteredRows) {
+            const groupValue = row.original[groupBy.field] ?? null;
+            const groupKey = groupValue === null ? '__null__' : String(groupValue);
+            if (!groups.has(groupKey)) {
+                groups.set(groupKey, []);
+            }
+            groups.get(groupKey).push(row.original);
+        }
+        // Convert to array and sort groups
+        const groupEntries = Array.from(groups.entries()).map(([key, groupData]) => {
+            const groupValue = key === '__null__' ? null : groups.get(key)?.[0]?.[groupBy.field];
+            return { key, groupValue, groupData };
+        });
+        // Sort groups according to sortOrder
+        const sortOrderConfig = groupBy.sortOrder;
+        if (sortOrderConfig) {
+            if (Array.isArray(sortOrderConfig)) {
+                // Array-based sort order
+                const orderMap = new Map(sortOrderConfig.map((val, idx) => [String(val), idx]));
+                groupEntries.sort((a, b) => {
+                    const aOrder = orderMap.get(a.key) ?? Infinity;
+                    const bOrder = orderMap.get(b.key) ?? Infinity;
+                    if (aOrder !== Infinity || bOrder !== Infinity) {
+                        return aOrder - bOrder;
+                    }
+                    // If not in sort order array, sort by key
+                    return String(a.groupValue ?? '').localeCompare(String(b.groupValue ?? ''));
+                });
+            }
+            else if (typeof sortOrderConfig === 'function') {
+                // Function-based sort order
+                const sortFn = sortOrderConfig;
+                groupEntries.sort((a, b) => {
+                    const aOrder = sortFn(a.groupValue, a.groupData);
+                    const bOrder = sortFn(b.groupValue, b.groupData);
+                    return aOrder - bOrder;
+                });
+            }
+        }
+        else {
+            // Default: sort by group value
+            groupEntries.sort((a, b) => {
+                if (a.groupValue === null && b.groupValue === null)
+                    return 0;
+                if (a.groupValue === null)
+                    return 1;
+                if (b.groupValue === null)
+                    return -1;
+                return String(a.groupValue).localeCompare(String(b.groupValue));
+            });
+        }
+        // Build flat structure with group headers and rows
+        const result = [];
+        for (const { key, groupValue, groupData } of groupEntries) {
+            result.push({
+                type: 'group',
+                groupValue,
+                groupData,
+                groupKey: key,
+            });
+            // Add rows if group is not collapsed
+            if (!collapsedGroups.has(key)) {
+                groupData.forEach((rowData, idx) => {
+                    result.push({
+                        type: 'row',
+                        data: rowData,
+                        index: filteredRows.findIndex((r) => r.original === rowData),
+                    });
+                });
+            }
+        }
+        return result;
+    }, [groupBy, table, collapsedGroups, globalFilter, sorting, pagination]);
     // Export to CSV
     const handleExport = () => {
         const visibleColumns = table.getVisibleFlatColumns();
@@ -144,78 +250,148 @@ total, page: externalPage, onPageChange, manualPagination = false, }) {
     }
     const visibleColumns = table.getVisibleFlatColumns();
     const hasData = data.length > 0;
-    return (_jsxs("div", { style: { display: 'flex', flexDirection: 'column', gap: spacing.lg }, children: [(searchable || exportable || showColumnVisibility) && (_jsxs("div", { style: styles({
-                    display: 'flex',
-                    gap: spacing.md,
-                    alignItems: 'center',
-                    flexWrap: 'wrap',
-                }), children: [searchable && (_jsxs("div", { style: { flex: '1', minWidth: '200px', maxWidth: '400px', position: 'relative' }, children: [_jsx(Search, { size: 16, style: {
-                                    position: 'absolute',
-                                    left: spacing.md,
-                                    top: '50%',
-                                    transform: 'translateY(-50%)',
-                                    color: colors.text.muted,
-                                    zIndex: 1,
-                                    pointerEvents: 'none',
-                                } }), _jsx("input", { type: "search", placeholder: "Search...", value: globalFilter, onChange: (e) => setGlobalFilter(e.target.value), style: styles({
-                                    width: '100%',
-                                    height: '36px',
-                                    padding: `0 ${spacing.md} 0 calc(${spacing.md} + 20px)`,
-                                    backgroundColor: colors.bg.elevated,
-                                    border: `1px solid ${colors.border.default}`,
-                                    borderRadius: spacing.sm,
-                                    color: colors.text.primary,
-                                    fontSize: ts.body.fontSize,
-                                    outline: 'none',
-                                    boxSizing: 'border-box',
-                                }) })] })), _jsxs("div", { style: { display: 'flex', gap: spacing.sm }, children: [showColumnVisibility && (_jsx(Dropdown, { trigger: _jsxs(Button, { variant: "secondary", size: "sm", children: [_jsx(Eye, { size: 16, style: { marginRight: spacing.xs } }), "Columns"] }), items: table
-                                    .getAllColumns()
-                                    .filter((col) => col.getCanHide())
-                                    .map((col) => ({
-                                    label: String(col.columnDef.header),
-                                    icon: col.getIsVisible() ? _jsx(Eye, { size: 14 }) : _jsx(EyeOff, { size: 14 }),
-                                    onClick: () => col.toggleVisibility(),
-                                })) })), exportable && hasData && (_jsxs(Button, { variant: "secondary", size: "sm", onClick: handleExport, children: [_jsx(Download, { size: 16, style: { marginRight: spacing.xs } }), "Export CSV"] }))] })] })), _jsx("div", { style: { overflowX: 'auto', border: `1px solid ${colors.border.subtle}`, borderRadius: spacing.sm }, children: !hasData ? (_jsx("div", { style: styles({
-                        textAlign: 'center',
-                        padding: spacing['5xl'],
-                        color: colors.text.muted,
-                        fontSize: ts.body.fontSize,
-                    }), children: emptyMessage })) : (_jsxs("table", { style: { width: '100%', borderCollapse: 'collapse' }, children: [_jsx("thead", { children: table.getHeaderGroups().map((headerGroup) => (_jsx("tr", { style: { borderBottom: `1px solid ${colors.border.subtle}` }, children: headerGroup.headers.map((header) => {
-                                    const canSort = header.column.getCanSort();
-                                    const sortDirection = header.column.getIsSorted();
-                                    return (_jsx("th", { style: styles({
-                                            padding: `${spacing.md} ${spacing.lg}`,
-                                            textAlign: header.column.columnDef.meta?.align || 'left',
-                                            fontSize: ts.bodySmall.fontSize,
-                                            fontWeight: ts.label.fontWeight,
+    return (_jsxs(_Fragment, { children: [_jsx("style", { children: `
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      ` }), _jsxs("div", { style: { display: 'flex', flexDirection: 'column', gap: spacing.lg }, children: [(searchable || exportable || showColumnVisibility || onRefresh) && (_jsxs("div", { style: styles({
+                            display: 'flex',
+                            gap: spacing.md,
+                            alignItems: 'center',
+                            flexWrap: 'wrap',
+                        }), children: [searchable && (_jsxs("div", { style: { flex: '1', minWidth: '200px', maxWidth: '400px', position: 'relative' }, children: [_jsx(Search, { size: 16, style: {
+                                            position: 'absolute',
+                                            left: spacing.md,
+                                            top: '50%',
+                                            transform: 'translateY(-50%)',
                                             color: colors.text.muted,
-                                            textTransform: 'uppercase',
-                                            letterSpacing: '0.05em',
-                                            cursor: canSort ? 'pointer' : 'default',
-                                            userSelect: 'none',
-                                            backgroundColor: colors.bg.surface,
-                                        }), onClick: header.column.getToggleSortingHandler(), children: _jsxs("div", { style: { display: 'flex', alignItems: 'center', gap: spacing.xs }, children: [flexRender(header.column.columnDef.header, header.getContext()), canSort && (_jsx("span", { style: { display: 'inline-flex', flexDirection: 'column' }, children: sortDirection === 'asc' ? (_jsx(ChevronUp, { size: 14, style: { color: colors.primary.default } })) : sortDirection === 'desc' ? (_jsx(ChevronDown, { size: 14, style: { color: colors.primary.default } })) : (_jsx(ChevronsUpDown, { size: 14, style: { opacity: 0.3 } })) }))] }) }, header.id));
-                                }) }, headerGroup.id))) }), _jsx("tbody", { children: table.getRowModel().rows.map((row) => (_jsx("tr", { onClick: () => onRowClick?.(row.original, row.index), style: styles({
-                                    borderBottom: `1px solid ${colors.border.subtle}`,
-                                    cursor: onRowClick ? 'pointer' : 'default',
-                                    transition: 'background-color 150ms ease',
-                                }), onMouseEnter: (e) => {
-                                    if (onRowClick) {
-                                        e.currentTarget.style.backgroundColor = colors.bg.elevated;
-                                    }
-                                }, onMouseLeave: (e) => {
-                                    e.currentTarget.style.backgroundColor = 'transparent';
-                                }, children: row.getVisibleCells().map((cell) => (_jsx("td", { style: styles({
-                                        padding: `${spacing.md} ${spacing.lg}`,
-                                        textAlign: cell.column.columnDef.meta?.align || 'left',
-                                        fontSize: ts.body.fontSize,
-                                        color: colors.text.secondary,
-                                    }), children: flexRender(cell.column.columnDef.cell, cell.getContext()) }, cell.id))) }, row.id))) })] })) }), hasData && (manualPagination ? (total !== undefined && total > pageSize) : table.getPageCount() > 1) && (_jsxs("div", { style: styles({
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: spacing.md,
-                    flexWrap: 'wrap',
-                }), children: [_jsx("div", { style: { fontSize: ts.bodySmall.fontSize, color: colors.text.muted }, children: manualPagination && total !== undefined ? (_jsxs(_Fragment, { children: ["Showing ", table.getState().pagination.pageIndex * table.getState().pagination.pageSize + 1, " to", ' ', Math.min((table.getState().pagination.pageIndex + 1) * table.getState().pagination.pageSize, total), ' ', "of ", total, " entries"] })) : (_jsxs(_Fragment, { children: ["Showing ", table.getState().pagination.pageIndex * table.getState().pagination.pageSize + 1, " to", ' ', Math.min((table.getState().pagination.pageIndex + 1) * table.getState().pagination.pageSize, table.getFilteredRowModel().rows.length), ' ', "of ", table.getFilteredRowModel().rows.length, " entries"] })) }), _jsxs("div", { style: { display: 'flex', gap: spacing.xs, alignItems: 'center' }, children: [_jsx(Button, { variant: "ghost", size: "sm", onClick: () => table.setPageIndex(0), disabled: !table.getCanPreviousPage(), children: _jsx(ChevronsLeft, { size: 16 }) }), _jsx(Button, { variant: "ghost", size: "sm", onClick: () => table.previousPage(), disabled: !table.getCanPreviousPage(), children: _jsx(ChevronLeft, { size: 16 }) }), _jsxs("div", { style: { fontSize: ts.bodySmall.fontSize, color: colors.text.secondary, padding: `0 ${spacing.md}` }, children: ["Page ", table.getState().pagination.pageIndex + 1, " of ", table.getPageCount()] }), _jsx(Button, { variant: "ghost", size: "sm", onClick: () => table.nextPage(), disabled: !table.getCanNextPage(), children: _jsx(ChevronRight, { size: 16 }) }), _jsx(Button, { variant: "ghost", size: "sm", onClick: () => table.setPageIndex(table.getPageCount() - 1), disabled: !table.getCanNextPage(), children: _jsx(ChevronsRight, { size: 16 }) })] })] }))] }));
+                                            zIndex: 1,
+                                            pointerEvents: 'none',
+                                        } }), _jsx("input", { type: "search", placeholder: "Search...", value: globalFilter, onChange: (e) => setGlobalFilter(e.target.value), style: styles({
+                                            width: '100%',
+                                            height: '36px',
+                                            padding: `0 ${spacing.md} 0 calc(${spacing.md} + 20px)`,
+                                            backgroundColor: colors.bg.elevated,
+                                            border: `1px solid ${colors.border.default}`,
+                                            borderRadius: spacing.sm,
+                                            color: colors.text.primary,
+                                            fontSize: ts.body.fontSize,
+                                            outline: 'none',
+                                            boxSizing: 'border-box',
+                                        }) })] })), _jsxs("div", { style: { display: 'flex', gap: spacing.sm }, children: [onRefresh && (_jsxs(Button, { variant: "secondary", size: "sm", onClick: onRefresh, disabled: refreshing || loading, children: [_jsx(RefreshCw, { size: 16, style: {
+                                                    marginRight: spacing.xs,
+                                                    animation: (refreshing || loading) ? 'spin 1s linear infinite' : undefined,
+                                                } }), "Refresh"] })), showColumnVisibility && (_jsx(Dropdown, { trigger: _jsxs(Button, { variant: "secondary", size: "sm", children: [_jsx(Eye, { size: 16, style: { marginRight: spacing.xs } }), "Columns"] }), items: table
+                                            .getAllColumns()
+                                            .filter((col) => col.getCanHide())
+                                            .map((col) => ({
+                                            label: String(col.columnDef.header),
+                                            icon: col.getIsVisible() ? _jsx(Eye, { size: 14 }) : _jsx(EyeOff, { size: 14 }),
+                                            onClick: () => col.toggleVisibility(),
+                                        })) })), exportable && hasData && (_jsxs(Button, { variant: "secondary", size: "sm", onClick: handleExport, children: [_jsx(Download, { size: 16, style: { marginRight: spacing.xs } }), "Export CSV"] }))] })] })), _jsx("div", { style: { overflowX: 'auto', border: `1px solid ${colors.border.subtle}`, borderRadius: spacing.sm }, children: !hasData ? (_jsx("div", { style: styles({
+                                textAlign: 'center',
+                                padding: spacing['5xl'],
+                                color: colors.text.muted,
+                                fontSize: ts.body.fontSize,
+                            }), children: emptyMessage })) : (_jsxs("table", { style: { width: '100%', borderCollapse: 'collapse' }, children: [_jsx("thead", { children: table.getHeaderGroups().map((headerGroup) => (_jsx("tr", { style: { borderBottom: `1px solid ${colors.border.subtle}` }, children: headerGroup.headers.map((header) => {
+                                            const canSort = header.column.getCanSort();
+                                            const sortDirection = header.column.getIsSorted();
+                                            return (_jsx("th", { style: styles({
+                                                    padding: `${spacing.md} ${spacing.lg}`,
+                                                    textAlign: header.column.columnDef.meta?.align || 'left',
+                                                    fontSize: ts.bodySmall.fontSize,
+                                                    fontWeight: ts.label.fontWeight,
+                                                    color: colors.text.muted,
+                                                    textTransform: 'uppercase',
+                                                    letterSpacing: '0.05em',
+                                                    cursor: canSort ? 'pointer' : 'default',
+                                                    userSelect: 'none',
+                                                    backgroundColor: colors.bg.surface,
+                                                }), onClick: header.column.getToggleSortingHandler(), children: _jsxs("div", { style: { display: 'flex', alignItems: 'center', gap: spacing.xs }, children: [flexRender(header.column.columnDef.header, header.getContext()), canSort && (_jsx("span", { style: { display: 'inline-flex', flexDirection: 'column' }, children: sortDirection === 'asc' ? (_jsx(ChevronUp, { size: 14, style: { color: colors.primary.default } })) : sortDirection === 'desc' ? (_jsx(ChevronDown, { size: 14, style: { color: colors.primary.default } })) : (_jsx(ChevronsUpDown, { size: 14, style: { opacity: 0.3 } })) }))] }) }, header.id));
+                                        }) }, headerGroup.id))) }), _jsx("tbody", { children: groupBy ? (
+                                    // Render grouped rows
+                                    groupedRows.map((item, idx) => {
+                                        if (item.type === 'group') {
+                                            const isCollapsed = collapsedGroups.has(item.groupKey);
+                                            const groupLabel = groupBy.renderLabel
+                                                ? groupBy.renderLabel(item.groupValue, item.groupData)
+                                                : item.groupValue === null
+                                                    ? 'No Stage'
+                                                    : String(item.groupValue);
+                                            return (_jsx("tr", { style: styles({
+                                                    backgroundColor: colors.bg.elevated,
+                                                    borderBottom: `2px solid ${colors.border.default}`,
+                                                    cursor: 'pointer',
+                                                }), onClick: () => {
+                                                    const newCollapsed = new Set(collapsedGroups);
+                                                    if (isCollapsed) {
+                                                        newCollapsed.delete(item.groupKey);
+                                                    }
+                                                    else {
+                                                        newCollapsed.add(item.groupKey);
+                                                    }
+                                                    setCollapsedGroups(newCollapsed);
+                                                }, children: _jsx("td", { colSpan: table.getVisibleFlatColumns().length, style: styles({
+                                                        padding: `${spacing.md} ${spacing.lg}`,
+                                                        fontSize: ts.body.fontSize,
+                                                        fontWeight: ts.label.fontWeight,
+                                                        color: colors.text.primary,
+                                                    }), children: _jsxs("div", { style: { display: 'flex', alignItems: 'center', gap: spacing.sm }, children: [_jsx(ChevronRightIcon, { size: 16, style: {
+                                                                    transform: isCollapsed ? 'rotate(0deg)' : 'rotate(90deg)',
+                                                                    transition: 'transform 150ms ease',
+                                                                    color: colors.text.muted,
+                                                                } }), _jsx("div", { style: { display: 'flex', alignItems: 'center', gap: spacing.xs, flex: 1 }, children: typeof groupLabel === 'string' ? _jsx("span", { children: groupLabel }) : groupLabel }), _jsxs("span", { style: { color: colors.text.muted, fontSize: ts.bodySmall.fontSize }, children: ["(", item.groupData.length, ")"] })] }) }) }, `group-${item.groupKey}`));
+                                        }
+                                        else {
+                                            // Regular row - find the corresponding table row
+                                            const tableRow = table.getRowModel().rows.find((r) => {
+                                                // Compare by reference or by ID if available
+                                                return r.original === item.data ||
+                                                    (item.data.id && r.original.id === item.data.id);
+                                            });
+                                            if (!tableRow)
+                                                return null;
+                                            return (_jsx("tr", { onClick: () => onRowClick?.(tableRow.original, tableRow.index), style: styles({
+                                                    borderBottom: `1px solid ${colors.border.subtle}`,
+                                                    cursor: onRowClick ? 'pointer' : 'default',
+                                                    transition: 'background-color 150ms ease',
+                                                }), onMouseEnter: (e) => {
+                                                    if (onRowClick) {
+                                                        e.currentTarget.style.backgroundColor = colors.bg.elevated;
+                                                    }
+                                                }, onMouseLeave: (e) => {
+                                                    e.currentTarget.style.backgroundColor = 'transparent';
+                                                }, children: tableRow.getVisibleCells().map((cell) => (_jsx("td", { style: styles({
+                                                        padding: `${spacing.md} ${spacing.lg}`,
+                                                        textAlign: cell.column.columnDef.meta?.align || 'left',
+                                                        fontSize: ts.body.fontSize,
+                                                        color: colors.text.secondary,
+                                                    }), children: flexRender(cell.column.columnDef.cell, cell.getContext()) }, cell.id))) }, `row-${tableRow.id}-${idx}`));
+                                        }
+                                    })) : (
+                                    // Render non-grouped rows (original behavior)
+                                    table.getRowModel().rows.map((row) => (_jsx("tr", { onClick: () => onRowClick?.(row.original, row.index), style: styles({
+                                            borderBottom: `1px solid ${colors.border.subtle}`,
+                                            cursor: onRowClick ? 'pointer' : 'default',
+                                            transition: 'background-color 150ms ease',
+                                        }), onMouseEnter: (e) => {
+                                            if (onRowClick) {
+                                                e.currentTarget.style.backgroundColor = colors.bg.elevated;
+                                            }
+                                        }, onMouseLeave: (e) => {
+                                            e.currentTarget.style.backgroundColor = 'transparent';
+                                        }, children: row.getVisibleCells().map((cell) => (_jsx("td", { style: styles({
+                                                padding: `${spacing.md} ${spacing.lg}`,
+                                                textAlign: cell.column.columnDef.meta?.align || 'left',
+                                                fontSize: ts.body.fontSize,
+                                                color: colors.text.secondary,
+                                            }), children: flexRender(cell.column.columnDef.cell, cell.getContext()) }, cell.id))) }, row.id)))) })] })) }), hasData && (manualPagination ? (total !== undefined && total > pageSize) : table.getPageCount() > 1) && (_jsxs("div", { style: styles({
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: spacing.md,
+                            flexWrap: 'wrap',
+                        }), children: [_jsx("div", { style: { fontSize: ts.bodySmall.fontSize, color: colors.text.muted }, children: manualPagination && total !== undefined ? (_jsxs(_Fragment, { children: ["Showing ", table.getState().pagination.pageIndex * table.getState().pagination.pageSize + 1, " to", ' ', Math.min((table.getState().pagination.pageIndex + 1) * table.getState().pagination.pageSize, total), ' ', "of ", total, " entries"] })) : (_jsxs(_Fragment, { children: ["Showing ", table.getState().pagination.pageIndex * table.getState().pagination.pageSize + 1, " to", ' ', Math.min((table.getState().pagination.pageIndex + 1) * table.getState().pagination.pageSize, table.getFilteredRowModel().rows.length), ' ', "of ", table.getFilteredRowModel().rows.length, " entries"] })) }), _jsxs("div", { style: { display: 'flex', gap: spacing.xs, alignItems: 'center' }, children: [_jsx(Button, { variant: "ghost", size: "sm", onClick: () => table.setPageIndex(0), disabled: !table.getCanPreviousPage(), children: _jsx(ChevronsLeft, { size: 16 }) }), _jsx(Button, { variant: "ghost", size: "sm", onClick: () => table.previousPage(), disabled: !table.getCanPreviousPage(), children: _jsx(ChevronLeft, { size: 16 }) }), _jsxs("div", { style: { fontSize: ts.bodySmall.fontSize, color: colors.text.secondary, padding: `0 ${spacing.md}` }, children: ["Page ", table.getState().pagination.pageIndex + 1, " of ", table.getPageCount()] }), _jsx(Button, { variant: "ghost", size: "sm", onClick: () => table.nextPage(), disabled: !table.getCanNextPage(), children: _jsx(ChevronRight, { size: 16 }) }), _jsx(Button, { variant: "ghost", size: "sm", onClick: () => table.setPageIndex(table.getPageCount() - 1), disabled: !table.getCanNextPage(), children: _jsx(ChevronsRight, { size: 16 }) })] })] }))] })] }));
 }
 //# sourceMappingURL=DataTable.js.map

@@ -2,14 +2,13 @@
 import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
 import { useThemeTokens } from '../theme/index.js';
 import { styles } from './utils';
-export function Card({ title, description, footer, className, onClick, style, children }) {
+export function Card({ title, description, footer, children }) {
     const { colors, radius, componentSpacing, textStyles: ts, spacing } = useThemeTokens();
-    return (_jsxs("div", { className: className, onClick: onClick, style: styles({
+    return (_jsxs("div", { style: styles({
             backgroundColor: colors.bg.surface,
             border: `1px solid ${colors.border.subtle}`,
             borderRadius: radius.lg,
             overflow: 'hidden',
-            ...(style || {}),
         }), children: [(title || description) && (_jsxs("div", { style: styles({
                     padding: componentSpacing.card.padding,
                     borderBottom: `1px solid ${colors.border.subtle}`,

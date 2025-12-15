@@ -2,7 +2,7 @@
 import { jsx as _jsx } from "react/jsx-runtime";
 import { useThemeTokens } from '../theme/index.js';
 import { styles } from './utils';
-export function Badge({ variant = 'default', className, style, children }) {
+export function Badge({ variant = 'default', children }) {
     const { colors, radius, textStyles: ts, spacing } = useThemeTokens();
     const getVariantStyles = () => {
         switch (variant) {
@@ -38,7 +38,7 @@ export function Badge({ variant = 'default', className, style, children }) {
                 };
         }
     };
-    return (_jsx("span", { className: className, style: styles({
+    return (_jsx("span", { style: styles({
             display: 'inline-flex',
             alignItems: 'center',
             padding: `${spacing.px} ${spacing.sm}`,
@@ -46,7 +46,6 @@ export function Badge({ variant = 'default', className, style, children }) {
             fontSize: ts.bodySmall.fontSize,
             fontWeight: ts.label.fontWeight,
             ...getVariantStyles(),
-            ...(style || {}),
         }), children: children }));
 }
 //# sourceMappingURL=Badge.js.map

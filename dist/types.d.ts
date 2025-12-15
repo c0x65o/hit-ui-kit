@@ -5,7 +5,7 @@
  */
 import React from 'react';
 export interface PageProps {
-    title?: React.ReactNode;
+    title?: string;
     description?: string;
     actions?: React.ReactNode;
     breadcrumbs?: BreadcrumbItem[];
@@ -16,9 +16,6 @@ export interface CardProps {
     title?: string;
     description?: string;
     footer?: React.ReactNode;
-    className?: string;
-    onClick?: (e: React.MouseEvent<HTMLDivElement>) => void;
-    style?: React.CSSProperties;
     children: React.ReactNode;
 }
 export interface ButtonProps {
@@ -28,14 +25,11 @@ export interface ButtonProps {
     disabled?: boolean;
     type?: 'button' | 'submit' | 'reset';
     onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
-    className?: string;
-    title?: string;
-    'aria-label'?: string;
     children: React.ReactNode;
 }
 export interface InputProps {
     label?: string;
-    type?: 'text' | 'email' | 'password' | 'number' | 'tel' | 'url' | 'search' | 'date' | 'datetime-local';
+    type?: 'text' | 'email' | 'password' | 'number' | 'tel' | 'url' | 'search';
     placeholder?: string;
     value: string;
     onChange: (value: string) => void;
@@ -77,7 +71,7 @@ export interface CheckboxProps {
 export interface TableColumn {
     key: string;
     label: string;
-    render?: (value: any, row: any, index: number) => React.ReactNode;
+    render?: (value: unknown, row: Record<string, unknown>, index: number) => React.ReactNode;
     width?: string;
     align?: 'left' | 'center' | 'right';
 }
@@ -91,6 +85,16 @@ export interface TableProps {
 export interface DataTableColumn<TData = Record<string, unknown>> extends TableColumn {
     sortable?: boolean;
     hideable?: boolean;
+}
+export interface GroupConfig<TData = Record<string, unknown>> {
+    /** Field key to group by */
+    field: string;
+    /** Custom sort order for groups. Can be an array of group values in desired order, or a function that returns sort order */
+    sortOrder?: string[] | ((groupValue: unknown, groupData: TData[]) => number);
+    /** Custom label renderer for group headers */
+    renderLabel?: (groupValue: unknown, groupData: TData[]) => React.ReactNode;
+    /** Whether groups are collapsed by default */
+    defaultCollapsed?: boolean;
 }
 export interface DataTableProps<TData extends Record<string, unknown> = Record<string, unknown>> {
     columns: DataTableColumn<TData>[];
@@ -111,11 +115,12 @@ export interface DataTableProps<TData extends Record<string, unknown> = Record<s
     page?: number;
     onPageChange?: (page: number) => void;
     manualPagination?: boolean;
+    onRefresh?: () => void;
+    refreshing?: boolean;
+    groupBy?: GroupConfig<TData>;
 }
 export interface BadgeProps {
     variant?: 'default' | 'success' | 'warning' | 'error' | 'info';
-    className?: string;
-    style?: React.CSSProperties;
     children: React.ReactNode;
 }
 export interface AvatarProps {
@@ -127,12 +132,10 @@ export interface AlertProps {
     variant: 'success' | 'warning' | 'error' | 'info';
     title?: string;
     onClose?: () => void;
-    className?: string;
     children: React.ReactNode;
 }
 export interface ModalProps {
-    open?: boolean;
-    isOpen?: boolean;
+    open: boolean;
     onClose: () => void;
     title?: string;
     description?: string;
@@ -153,7 +156,6 @@ export interface AlertDialogProps {
 }
 export interface SpinnerProps {
     size?: 'sm' | 'md' | 'lg';
-    className?: string;
 }
 export interface EmptyStateProps {
     icon?: React.ReactNode;
