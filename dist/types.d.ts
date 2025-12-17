@@ -17,6 +17,7 @@ export interface CardProps {
     description?: string;
     footer?: React.ReactNode;
     children: React.ReactNode;
+    className?: string;
 }
 export interface ButtonProps extends Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, 'type' | 'onClick' | 'disabled'> {
     variant?: 'primary' | 'secondary' | 'danger' | 'ghost' | 'link';
