@@ -4,16 +4,10 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useUi } from '../index';
 import type { AclPickerProps, AclEntry, Principal, PrincipalType } from '../types/acl';
 
-// Optional import - only used if fetchPrincipals is not provided
-// Feature packs can provide their own fetcher to avoid this dependency
-let usePrincipalsHook: any = null;
-try {
-  // Try to import usePrincipals from auth-core (optional dependency)
-  const authCore = require('@hit/feature-pack-auth-core');
-  usePrincipalsHook = authCore.usePrincipals;
-} catch {
-  // Auth-core not available - will require fetchPrincipals prop
-}
+// Import usePrincipals hook from auth-core
+// Note: Feature packs can provide their own fetchPrincipals prop to avoid this dependency
+// @ts-ignore - Optional peer dependency
+import { usePrincipals } from '@hit/feature-pack-auth-core';
 
 /**
  * AclPicker - Main ACL picker component
@@ -53,25 +47,14 @@ export function AclPicker({
     return { users: !!users, groups: !!groups, roles: !!roles };
   }, [config.principals]);
 
-  // Use custom fetcher if provided, otherwise use hook (if available)
-  let hookPrincipals: Principal[] = [];
-  let principalsLoading = false;
-  let principalsError: Error | null = null;
-
-  if (!fetchPrincipals && usePrincipalsHook) {
-    const hookResult = usePrincipalsHook({
-      users: enabledPrincipals.users,
-      groups: enabledPrincipals.groups,
-      roles: enabledPrincipals.roles,
-      search: searchQuery || undefined,
-    });
-    hookPrincipals = hookResult.principals || [];
-    principalsLoading = hookResult.loading || false;
-    principalsError = hookResult.error || null;
-  } else if (!fetchPrincipals && !usePrincipalsHook) {
-    // No custom fetcher and no hook available - show error
-    principalsError = new Error('usePrincipals hook not available. Please provide fetchPrincipals prop or install @hit/feature-pack-auth-core');
-  }
+  // Use custom fetcher if provided, otherwise use hook
+  // Note: If fetchPrincipals is not provided, @hit/feature-pack-auth-core must be installed
+  const { principals: hookPrincipals, loading: principalsLoading, error: principalsError } = usePrincipals({
+    users: enabledPrincipals.users && !fetchPrincipals,
+    groups: enabledPrincipals.groups && !fetchPrincipals,
+    roles: enabledPrincipals.roles && !fetchPrincipals,
+    search: searchQuery || undefined,
+  });
 
   const [customPrincipals, setCustomPrincipals] = useState<Principal[]>([]);
   const [customPrincipalsLoading, setCustomPrincipalsLoading] = useState(false);
