@@ -13,16 +13,16 @@ All `Table` components have been replaced with `DataTable` components which prov
 
 1. **hit-ui-kit/src/kit.ts** - Added DataTable export
 2. **hit-ui-kit/src/types.ts** - Added DataTableProps type
-3. **hit-feature-pack-auth-admin/src/pages/Users.tsx** - Replaced Table with DataTable
+3. **hit-feature-pack-auth-core/src/pages/Users.tsx** - Replaced Table with DataTable
 
 ## Remaining Files to Update
 
 The following files still use `Table` and should be updated to use `DataTable`:
 
-- `hit-feature-pack-auth-admin/src/pages/Invites.tsx`
-- `hit-feature-pack-auth-admin/src/pages/AuditLog.tsx`
-- `hit-feature-pack-auth-admin/src/pages/Sessions.tsx`
-- `hit-feature-pack-auth-admin/src/pages/UserDetail.tsx`
+- `hit-feature-pack-auth-core/src/pages/Invites.tsx`
+- `hit-feature-pack-auth-core/src/pages/AuditLog.tsx`
+- `hit-feature-pack-auth-core/src/pages/Sessions.tsx`
+- `hit-feature-pack-auth-core/src/pages/UserDetail.tsx`
 - `hit-feature-pack-notepad/src/pages/List.tsx`
 
 ## Migration Steps
