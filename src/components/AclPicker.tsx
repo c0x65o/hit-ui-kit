@@ -58,8 +58,37 @@ export function AclPicker({
 
   const [customPrincipals, setCustomPrincipals] = useState<Principal[]>([]);
   const [customPrincipalsLoading, setCustomPrincipalsLoading] = useState(false);
+  // Cache of all principals for display name lookups (fetched on mount)
+  const [allPrincipalsCache, setAllPrincipalsCache] = useState<Principal[]>([]);
 
-  // Fetch principals using custom fetcher if provided
+  // Fetch all principals on mount for display name lookups
+  useEffect(() => {
+    if (fetchPrincipals) {
+      const fetchAll = async () => {
+        const allPrincipals: Principal[] = [];
+        try {
+          if (enabledPrincipals.users) {
+            const users = await fetchPrincipals('user');
+            allPrincipals.push(...users);
+          }
+          if (enabledPrincipals.groups) {
+            const groups = await fetchPrincipals('group');
+            allPrincipals.push(...groups);
+          }
+          if (enabledPrincipals.roles) {
+            const roles = await fetchPrincipals('role');
+            allPrincipals.push(...roles);
+          }
+          setAllPrincipalsCache(allPrincipals);
+        } catch (err) {
+          console.error('Failed to fetch principals for cache:', err);
+        }
+      };
+      fetchAll();
+    }
+  }, [fetchPrincipals, enabledPrincipals.users, enabledPrincipals.groups, enabledPrincipals.roles]);
+
+  // Fetch principals using custom fetcher if provided (for the add form dropdown)
   useEffect(() => {
     if (fetchPrincipals && showAddForm) {
       setCustomPrincipalsLoading(true);
@@ -212,7 +241,10 @@ export function AclPicker({
   }
 
   function getPrincipalDisplayName(principalType: PrincipalType, principalId: string): string {
-    const principal = principals.find((p: Principal) => p.type === principalType && p.id === principalId);
+    // Check current principals first (for add form), then fall back to cache
+    const principal = principals.find((p: Principal) => p.type === principalType && p.id === principalId)
+      || allPrincipalsCache.find((p: Principal) => p.type === principalType && p.id === principalId)
+      || (fetchPrincipals ? null : hookPrincipals.find((p: Principal) => p.type === principalType && p.id === principalId));
     return principal?.displayName || principalId;
   }
 

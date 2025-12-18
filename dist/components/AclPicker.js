@@ -39,7 +39,36 @@ export function AclPicker({ config, entries, loading: externalLoading = false, o
     });
     const [customPrincipals, setCustomPrincipals] = useState([]);
     const [customPrincipalsLoading, setCustomPrincipalsLoading] = useState(false);
-    // Fetch principals using custom fetcher if provided
+    // Cache of all principals for display name lookups (fetched on mount)
+    const [allPrincipalsCache, setAllPrincipalsCache] = useState([]);
+    // Fetch all principals on mount for display name lookups
+    useEffect(() => {
+        if (fetchPrincipals) {
+            const fetchAll = async () => {
+                const allPrincipals = [];
+                try {
+                    if (enabledPrincipals.users) {
+                        const users = await fetchPrincipals('user');
+                        allPrincipals.push(...users);
+                    }
+                    if (enabledPrincipals.groups) {
+                        const groups = await fetchPrincipals('group');
+                        allPrincipals.push(...groups);
+                    }
+                    if (enabledPrincipals.roles) {
+                        const roles = await fetchPrincipals('role');
+                        allPrincipals.push(...roles);
+                    }
+                    setAllPrincipalsCache(allPrincipals);
+                }
+                catch (err) {
+                    console.error('Failed to fetch principals for cache:', err);
+                }
+            };
+            fetchAll();
+        }
+    }, [fetchPrincipals, enabledPrincipals.users, enabledPrincipals.groups, enabledPrincipals.roles]);
+    // Fetch principals using custom fetcher if provided (for the add form dropdown)
     useEffect(() => {
         if (fetchPrincipals && showAddForm) {
             setCustomPrincipalsLoading(true);
@@ -182,7 +211,10 @@ export function AclPicker({ config, entries, loading: externalLoading = false, o
         }
     }
     function getPrincipalDisplayName(principalType, principalId) {
-        const principal = principals.find((p) => p.type === principalType && p.id === principalId);
+        // Check current principals first (for add form), then fall back to cache
+        const principal = principals.find((p) => p.type === principalType && p.id === principalId)
+            || allPrincipalsCache.find((p) => p.type === principalType && p.id === principalId)
+            || (fetchPrincipals ? null : hookPrincipals.find((p) => p.type === principalType && p.id === principalId));
         return principal?.displayName || principalId;
     }
     function getPermissionLabel(permissionKey) {
