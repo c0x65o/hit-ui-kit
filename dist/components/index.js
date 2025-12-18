@@ -32,6 +32,8 @@ export { Dropdown } from './Dropdown';
 export { Breadcrumb } from './Breadcrumb';
 // Help
 export { Help } from './Help';
+// ACL
+export { AclPicker } from './AclPicker';
 // Utilities
 export { cn, styles } from './utils';
 //# sourceMappingURL=index.js.map

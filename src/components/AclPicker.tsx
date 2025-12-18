@@ -84,13 +84,13 @@ export function AclPicker({
       filtered = filtered.filter(filterPrincipals);
     }
     // Filter by selected type
-    filtered = filtered.filter(p => p.type === selectedPrincipalType);
+    filtered = filtered.filter((p: Principal) => p.type === selectedPrincipalType);
     return filtered;
   }, [principals, filterPrincipals, selectedPrincipalType]);
 
   // Get principal options for select
   const principalOptions = useMemo(() => {
-    return filteredPrincipals.map(p => ({
+    return filteredPrincipals.map((p: Principal) => ({
       value: p.id,
       label: p.displayName,
     }));
@@ -212,7 +212,7 @@ export function AclPicker({
   }
 
   function getPrincipalDisplayName(principalType: PrincipalType, principalId: string): string {
-    const principal = principals.find(p => p.type === principalType && p.id === principalId);
+    const principal = principals.find((p: Principal) => p.type === principalType && p.id === principalId);
     return principal?.displayName || principalId;
   }
 

@@ -114,6 +114,8 @@ export { useAlertDialog } from './hooks/useAlertDialog';
 export { Page, Card, Button, Input, TextArea, Select, Checkbox, Table, DataTable, Badge, Avatar, Alert, Modal, AlertDialog, Spinner, EmptyState, Tabs, Dropdown, Breadcrumb, Help, 
 // Auth-specific
 AuthLayout, AuthCard, FormInput, 
+// ACL
+AclPicker, 
 // Utils
 cn, styles, } from './components';
 //# sourceMappingURL=index.js.map

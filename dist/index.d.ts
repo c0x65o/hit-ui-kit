@@ -57,11 +57,12 @@ export declare function UiKitProvider({ kit, children, }: {
  */
 export declare function createKit(partial: Partial<UiKit>): UiKit;
 export type { UiKit, PageProps, CardProps, ButtonProps, InputProps, TextAreaProps, SelectProps, SelectOption, CheckboxProps, TableProps, TableColumn, BadgeProps, AvatarProps, AlertProps, ModalProps, SpinnerProps, EmptyStateProps, TabsProps, DropdownProps, BreadcrumbProps, BreadcrumbItem, HelpProps, } from './types';
+export type { PrincipalType, Principal, HierarchicalPermission, GranularPermission, AclEntry, AclPickerConfig, AclPickerProps, } from './types/acl';
 export { ThemeProvider, ConditionalThemeProvider, useTheme, useThemeContext, useThemeTokens, getConfiguredTheme, darkTheme, lightTheme, type Theme, } from './theme';
 export * from './tokens';
 export { defaultKit } from './kit';
 export { useAlertDialog } from './hooks/useAlertDialog';
 export type { AlertDialogOptions, AlertDialogState } from './hooks/useAlertDialog';
-export { Page, Card, Button, Input, TextArea, Select, Checkbox, Table, DataTable, Badge, Avatar, Alert, Modal, AlertDialog, Spinner, EmptyState, Tabs, Dropdown, Breadcrumb, Help, AuthLayout, AuthCard, FormInput, cn, styles, } from './components';
+export { Page, Card, Button, Input, TextArea, Select, Checkbox, Table, DataTable, Badge, Avatar, Alert, Modal, AlertDialog, Spinner, EmptyState, Tabs, Dropdown, Breadcrumb, Help, AuthLayout, AuthCard, FormInput, AclPicker, cn, styles, } from './components';
 export type { AuthLayoutProps, AuthCardProps, FormInputProps } from './components';
 //# sourceMappingURL=index.d.ts.map
