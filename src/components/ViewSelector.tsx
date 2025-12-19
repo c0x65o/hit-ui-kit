@@ -424,6 +424,18 @@ export function ViewSelector({ tableId, onViewChange, availableColumns = [] }: V
 
           {/* Dropdown */}
           <div style={dropdownStyles.container}>
+            {/* Show message when no views exist */}
+            {views.length === 0 && !loading && (
+              <div style={styles({
+                padding: spacing.md,
+                textAlign: 'center',
+                color: colors.text.muted,
+                fontSize: ts.bodySmall.fontSize,
+              })}>
+                No views yet. Create your first view to save filters and column preferences.
+              </div>
+            )}
+            
             {/* System/Default Views */}
             {systemViews.length > 0 && (
               <>
