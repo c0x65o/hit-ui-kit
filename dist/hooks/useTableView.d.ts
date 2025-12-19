@@ -61,6 +61,7 @@ export declare function useTableView({ tableId, onViewChange }: UseTableViewOpti
             desc: boolean;
         }>;
         isDefault?: boolean;
+        isSystem?: boolean;
     }) => Promise<any>;
     updateView: (viewId: string, updates: Partial<TableView>) => Promise<any>;
     deleteView: (viewId: string) => Promise<void>;

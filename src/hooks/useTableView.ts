@@ -145,6 +145,7 @@ export function useTableView({ tableId, onViewChange }: UseTableViewOptions) {
     columnVisibility?: Record<string, boolean>;
     sorting?: Array<{ id: string; desc: boolean }>;
     isDefault?: boolean;
+    isSystem?: boolean; // If true, creates a system view visible to all users
   }) => {
     const res = await fetch('/api/table-views', {
       method: 'POST',
