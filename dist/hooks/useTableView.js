@@ -180,6 +180,42 @@ export function useTableView({ tableId, onViewChange }) {
     }, [tableId]);
     // Refresh without resetting view
     const refresh = useCallback(() => fetchViews(false), [fetchViews]);
+    // Get share entries for a view
+    const getShares = useCallback(async (viewId) => {
+        const res = await fetch(`/api/table-views/${viewId}/shares`);
+        if (!res.ok) {
+            const json = await res.json().catch(() => ({}));
+            throw new Error(json?.error || 'Failed to fetch shares');
+        }
+        const json = await res.json();
+        return json.data || [];
+    }, []);
+    // Add a share entry
+    const addShare = useCallback(async (viewId, principalType, principalId) => {
+        const res = await fetch(`/api/table-views/${viewId}/shares`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ principalType, principalId }),
+        });
+        if (!res.ok) {
+            const json = await res.json().catch(() => ({}));
+            throw new Error(json?.error || 'Failed to share view');
+        }
+        const json = await res.json();
+        // Update view's isShared flag locally
+        setViews((prev) => prev.map((v) => (v.id === viewId ? { ...v, isShared: true } : v)));
+        return json.data;
+    }, []);
+    // Remove a share entry
+    const removeShare = useCallback(async (viewId, principalType, principalId) => {
+        const res = await fetch(`/api/table-views/${viewId}/shares?principalType=${encodeURIComponent(principalType)}&principalId=${encodeURIComponent(principalId)}`, {
+            method: 'DELETE',
+        });
+        if (!res.ok) {
+            const json = await res.json().catch(() => ({}));
+            throw new Error(json?.error || 'Failed to remove share');
+        }
+    }, []);
     return {
         views,
         currentView,
@@ -191,6 +227,10 @@ export function useTableView({ tableId, onViewChange }) {
         deleteView,
         selectView,
         refresh,
+        // Sharing functions
+        getShares,
+        addShare,
+        removeShare,
     };
 }
 //# sourceMappingURL=useTableView.js.map

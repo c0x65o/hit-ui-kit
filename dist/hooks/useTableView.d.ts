@@ -11,6 +11,15 @@ export interface TableViewGroupBy {
     field: string;
     sortOrder?: string[];
 }
+export interface TableViewShare {
+    id: string;
+    viewId: string;
+    principalType: 'user' | 'group' | 'role';
+    principalId: string;
+    sharedBy: string;
+    sharedByName?: string | null;
+    createdAt: string;
+}
 export interface TableView {
     id: string;
     userId: string;
@@ -31,6 +40,9 @@ export interface TableView {
     updatedAt: string;
     lastUsedAt?: string | null;
     filters: TableViewFilter[];
+    _category?: 'system' | 'user' | 'shared';
+    _sharedBy?: string;
+    _sharedByName?: string | null;
 }
 interface UseTableViewOptions {
     tableId: string;
@@ -73,6 +85,9 @@ export declare function useTableView({ tableId, onViewChange }: UseTableViewOpti
     deleteView: (viewId: string) => Promise<void>;
     selectView: (view: TableView | null) => Promise<void>;
     refresh: () => Promise<void>;
+    getShares: (viewId: string) => Promise<TableViewShare[]>;
+    addShare: (viewId: string, principalType: "user" | "group" | "role", principalId: string) => Promise<TableViewShare>;
+    removeShare: (viewId: string, principalType: "user" | "group" | "role", principalId: string) => Promise<void>;
 };
 export {};
 //# sourceMappingURL=useTableView.d.ts.map

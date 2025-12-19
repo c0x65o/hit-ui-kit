@@ -1,6 +1,6 @@
 {
   "name": "@hit/ui-kit",
-  "version": "1.0.40",
+  "version": "1.0.41",
   "description": "UI Kit contract for HIT feature packs - interfaces and context only",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

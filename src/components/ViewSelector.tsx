@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { ChevronDown, Plus, Edit2, Trash2, Star, Filter, Trash, Eye, EyeOff, Columns, Layers } from 'lucide-react';
-import { useTableView, type TableView, type TableViewFilter } from '../hooks/useTableView.js';
+import { ChevronDown, Plus, Edit2, Trash2, Star, Filter, Trash, Eye, EyeOff, Columns, Layers, Share2, Users, X } from 'lucide-react';
+import { useTableView, type TableView, type TableViewFilter, type TableViewShare } from '../hooks/useTableView.js';
 import { useThemeTokens } from '../theme/index.js';
 import { Button } from './Button.js';
 import { Modal } from './Modal.js';
@@ -79,7 +79,7 @@ interface ViewSelectorProps {
  */
 export function ViewSelector({ tableId, onViewChange, availableColumns = [] }: ViewSelectorProps) {
   const { colors, radius, spacing, textStyles: ts, shadows } = useThemeTokens();
-  const { views, currentView, loading, available, selectView, deleteView, createView, updateView } = useTableView({
+  const { views, currentView, loading, available, selectView, deleteView, createView, updateView, getShares, addShare, removeShare } = useTableView({
     tableId,
     onViewChange,
   });
@@ -87,7 +87,7 @@ export function ViewSelector({ tableId, onViewChange, availableColumns = [] }: V
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [showBuilder, setShowBuilder] = useState(false);
   const [editingView, setEditingView] = useState<TableView | null>(null);
-  const [activeTab, setActiveTab] = useState<'filters' | 'columns' | 'grouping'>('filters');
+  const [activeTab, setActiveTab] = useState<'filters' | 'columns' | 'grouping' | 'sharing'>('filters');
   
   // Builder form state
   const [builderName, setBuilderName] = useState('');
@@ -96,9 +96,17 @@ export function ViewSelector({ tableId, onViewChange, availableColumns = [] }: V
   const [builderColumnVisibility, setBuilderColumnVisibility] = useState<Record<string, boolean>>({});
   const [builderGroupByField, setBuilderGroupByField] = useState<string>('');
   const [builderSaving, setBuilderSaving] = useState(false);
+  
+  // Share state
+  const [shares, setShares] = useState<TableViewShare[]>([]);
+  const [sharesLoading, setSharesLoading] = useState(false);
+  const [shareEmail, setShareEmail] = useState('');
+  const [shareError, setShareError] = useState<string | null>(null);
 
-  const systemViews = views.filter((v) => v.isSystem);
-  const customViews = views.filter((v) => !v.isSystem);
+  // Categorize views
+  const systemViews = views.filter((v) => v._category === 'system' || v.isSystem);
+  const customViews = views.filter((v) => v._category === 'user' || (!v.isSystem && v._category !== 'shared'));
+  const sharedViews = views.filter((v) => v._category === 'shared');
 
   // Get hideable columns (all columns are hideable by default unless specified)
   const hideableColumns = availableColumns.filter((col) => col.hideable !== false);
@@ -112,6 +120,12 @@ export function ViewSelector({ tableId, onViewChange, availableColumns = [] }: V
         setBuilderFilters(editingView.filters || []);
         setBuilderColumnVisibility(editingView.columnVisibility || {});
         setBuilderGroupByField(editingView.groupBy?.field || '');
+        // Load shares when editing
+        setSharesLoading(true);
+        getShares(editingView.id)
+          .then(setShares)
+          .catch(() => setShares([]))
+          .finally(() => setSharesLoading(false));
       } else {
         setBuilderName('');
         setBuilderDescription('');
@@ -119,10 +133,13 @@ export function ViewSelector({ tableId, onViewChange, availableColumns = [] }: V
         // Default: all columns visible
         setBuilderColumnVisibility({});
         setBuilderGroupByField('');
+        setShares([]);
       }
       setActiveTab('filters');
+      setShareEmail('');
+      setShareError(null);
     }
-  }, [showBuilder, editingView]);
+  }, [showBuilder, editingView, getShares]);
 
   // If API not available (feature pack not installed), don't render
   if (!available) {
@@ -565,6 +582,59 @@ export function ViewSelector({ tableId, onViewChange, availableColumns = [] }: V
               </>
             )}
 
+            {/* Shared with me */}
+            {sharedViews.length > 0 && (
+              <>
+                <div style={styles({
+                  ...dropdownStyles.sectionHeader,
+                  borderTop: `1px solid ${colors.border.subtle}`,
+                })}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: spacing.xs }}>
+                    <Users size={12} />
+                    Shared with me
+                  </span>
+                </div>
+                {sharedViews.map((view) => (
+                  <button
+                    key={view.id}
+                    onClick={() => {
+                      selectView(view);
+                      setDropdownOpen(false);
+                    }}
+                    style={styles({
+                      ...dropdownStyles.viewItem,
+                      backgroundColor: currentView?.id === view.id ? colors.bg.elevated : 'transparent',
+                      flexDirection: 'column',
+                      alignItems: 'flex-start',
+                      gap: spacing.xs,
+                    })}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = colors.bg.elevated;
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor =
+                        currentView?.id === view.id ? colors.bg.elevated : 'transparent';
+                    }}
+                  >
+                    <span style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, width: '100%' }}>
+                      <span style={{ flex: 1 }}>{view.name}</span>
+                      {view.filters?.length > 0 && (
+                        <span style={styles({ fontSize: ts.bodySmall.fontSize, color: colors.text.muted })}>
+                          {view.filters.length} filter{view.filters.length !== 1 ? 's' : ''}
+                        </span>
+                      )}
+                    </span>
+                    <span style={styles({
+                      fontSize: '11px',
+                      color: colors.text.muted,
+                    })}>
+                      Shared by {view._sharedByName || view._sharedBy || 'someone'}
+                    </span>
+                  </button>
+                ))}
+              </>
+            )}
+
             {/* Add New View */}
             <div style={styles({ borderTop: `1px solid ${colors.border.subtle}`, padding: spacing.xs })}>
               <button
@@ -717,6 +787,41 @@ export function ViewSelector({ tableId, onViewChange, availableColumns = [] }: V
                   </span>
                 )}
               </button>
+              {/* Sharing tab - only show when editing (not creating) */}
+              {editingView && (
+                <button
+                  onClick={() => setActiveTab('sharing')}
+                  style={styles({
+                    padding: `${spacing.sm} ${spacing.md}`,
+                    fontSize: ts.body.fontSize,
+                    fontWeight: activeTab === 'sharing' ? ts.label.fontWeight : 'normal',
+                    color: activeTab === 'sharing' ? colors.primary.default : colors.text.muted,
+                    background: 'none',
+                    border: 'none',
+                    borderBottom: activeTab === 'sharing' ? `2px solid ${colors.primary.default}` : '2px solid transparent',
+                    marginBottom: '-1px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: spacing.xs,
+                  })}
+                >
+                  <Share2 size={14} />
+                  Sharing
+                  {shares.length > 0 && (
+                    <span style={styles({
+                      backgroundColor: colors.success?.default || '#22c55e',
+                      color: '#fff',
+                      fontSize: '11px',
+                      padding: '2px 6px',
+                      borderRadius: radius.full,
+                      fontWeight: '600',
+                    })}>
+                      {shares.length}
+                    </span>
+                  )}
+                </button>
+              )}
             </div>
 
             {/* Filters Tab */}
@@ -1023,6 +1128,143 @@ export function ViewSelector({ tableId, onViewChange, availableColumns = [] }: V
                   >
                     Clear Grouping
                   </Button>
+                )}
+              </div>
+            )}
+
+            {/* Sharing Tab */}
+            {activeTab === 'sharing' && editingView && (
+              <div style={styles({ display: 'flex', flexDirection: 'column', gap: spacing.md })}>
+                <p style={styles({ fontSize: ts.bodySmall.fontSize, color: colors.text.muted, margin: 0 })}>
+                  Share this view with other users. They will see it in their "Shared with me" section.
+                </p>
+
+                {/* Add share form */}
+                <div style={styles({
+                  display: 'flex',
+                  gap: spacing.sm,
+                  alignItems: 'flex-end',
+                })}>
+                  <div style={{ flex: 1 }}>
+                    <Input
+                      label="Share with user (email)"
+                      value={shareEmail}
+                      onChange={(val) => {
+                        setShareEmail(val);
+                        setShareError(null);
+                      }}
+                      placeholder="user@example.com"
+                    />
+                  </div>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    disabled={!shareEmail.trim()}
+                    onClick={async () => {
+                      if (!shareEmail.trim() || !editingView) return;
+                      try {
+                        setShareError(null);
+                        const newShare = await addShare(editingView.id, 'user', shareEmail.trim());
+                        setShares((prev) => [...prev, newShare]);
+                        setShareEmail('');
+                      } catch (err: any) {
+                        setShareError(err?.message || 'Failed to share');
+                      }
+                    }}
+                  >
+                    <Plus size={14} style={{ marginRight: spacing.xs }} />
+                    Share
+                  </Button>
+                </div>
+
+                {shareError && (
+                  <div style={styles({
+                    padding: spacing.sm,
+                    backgroundColor: '#fef2f2',
+                    color: colors.error?.default || '#ef4444',
+                    borderRadius: radius.md,
+                    fontSize: ts.bodySmall.fontSize,
+                  })}>
+                    {shareError}
+                  </div>
+                )}
+
+                {/* Current shares list */}
+                {sharesLoading ? (
+                  <div style={styles({
+                    padding: spacing.xl,
+                    textAlign: 'center',
+                    color: colors.text.muted,
+                  })}>
+                    Loading shares...
+                  </div>
+                ) : shares.length === 0 ? (
+                  <div style={styles({
+                    padding: spacing.xl,
+                    textAlign: 'center',
+                    color: colors.text.muted,
+                    fontSize: ts.body.fontSize,
+                    border: `1px dashed ${colors.border.subtle}`,
+                    borderRadius: radius.md,
+                  })}>
+                    This view is not shared with anyone yet.
+                  </div>
+                ) : (
+                  <div style={styles({ display: 'flex', flexDirection: 'column', gap: spacing.sm })}>
+                    <div style={styles({
+                      fontSize: ts.bodySmall.fontSize,
+                      fontWeight: ts.label.fontWeight,
+                      color: colors.text.secondary,
+                    })}>
+                      Shared with {shares.length} {shares.length === 1 ? 'user' : 'people'}
+                    </div>
+                    {shares.map((share) => (
+                      <div
+                        key={share.id}
+                        style={styles({
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: spacing.sm,
+                          padding: spacing.md,
+                          backgroundColor: colors.bg.elevated,
+                          borderRadius: radius.md,
+                          border: `1px solid ${colors.border.subtle}`,
+                        })}
+                      >
+                        <Users size={16} style={{ color: colors.text.muted }} />
+                        <div style={{ flex: 1 }}>
+                          <div style={styles({ fontSize: ts.body.fontSize, color: colors.text.primary })}>
+                            {share.principalId}
+                          </div>
+                          <div style={styles({ fontSize: '11px', color: colors.text.muted })}>
+                            {share.principalType === 'user' ? 'User' : share.principalType === 'group' ? 'Group' : 'Role'}
+                          </div>
+                        </div>
+                        <button
+                          onClick={async () => {
+                            try {
+                              await removeShare(editingView.id, share.principalType, share.principalId);
+                              setShares((prev) => prev.filter((s) => s.id !== share.id));
+                            } catch (err: any) {
+                              setShareError(err?.message || 'Failed to remove share');
+                            }
+                          }}
+                          style={styles({
+                            padding: spacing.xs,
+                            background: 'none',
+                            border: 'none',
+                            cursor: 'pointer',
+                            color: colors.error?.default || '#ef4444',
+                            display: 'flex',
+                            alignItems: 'center',
+                          })}
+                          title="Remove share"
+                        >
+                          <X size={16} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
             )}
