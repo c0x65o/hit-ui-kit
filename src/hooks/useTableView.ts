@@ -15,6 +15,11 @@ export interface TableViewFilter {
   sortOrder?: number;
 }
 
+export interface TableViewGroupBy {
+  field: string;
+  sortOrder?: string[];
+}
+
 export interface TableView {
   id: string;
   userId: string;
@@ -26,6 +31,7 @@ export interface TableView {
   isShared: boolean;
   columnVisibility?: Record<string, boolean> | null;
   sorting?: Array<{ id: string; desc: boolean }> | null;
+  groupBy?: TableViewGroupBy | null;
   metadata?: Record<string, unknown> | null;
   createdAt: string;
   updatedAt: string;
@@ -144,6 +150,7 @@ export function useTableView({ tableId, onViewChange }: UseTableViewOptions) {
     filters?: TableViewFilter[];
     columnVisibility?: Record<string, boolean>;
     sorting?: Array<{ id: string; desc: boolean }>;
+    groupBy?: TableViewGroupBy;
     isDefault?: boolean;
     isSystem?: boolean; // If true, creates a system view visible to all users
   }) => {

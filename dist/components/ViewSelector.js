@@ -1,7 +1,7 @@
 'use client';
 import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-runtime";
 import { useState, useEffect } from 'react';
-import { ChevronDown, Plus, Edit2, Trash2, Star, Filter, Trash, Eye, EyeOff, Columns } from 'lucide-react';
+import { ChevronDown, Plus, Edit2, Trash2, Star, Filter, Trash, Eye, EyeOff, Columns, Layers } from 'lucide-react';
 import { useTableView } from '../hooks/useTableView.js';
 import { useThemeTokens } from '../theme/index.js';
 import { Button } from './Button.js';
@@ -67,6 +67,7 @@ export function ViewSelector({ tableId, onViewChange, availableColumns = [] }) {
     const [builderDescription, setBuilderDescription] = useState('');
     const [builderFilters, setBuilderFilters] = useState([]);
     const [builderColumnVisibility, setBuilderColumnVisibility] = useState({});
+    const [builderGroupByField, setBuilderGroupByField] = useState('');
     const [builderSaving, setBuilderSaving] = useState(false);
     const systemViews = views.filter((v) => v.isSystem);
     const customViews = views.filter((v) => !v.isSystem);
@@ -80,6 +81,7 @@ export function ViewSelector({ tableId, onViewChange, availableColumns = [] }) {
                 setBuilderDescription(editingView.description || '');
                 setBuilderFilters(editingView.filters || []);
                 setBuilderColumnVisibility(editingView.columnVisibility || {});
+                setBuilderGroupByField(editingView.groupBy?.field || '');
             }
             else {
                 setBuilderName('');
@@ -87,6 +89,7 @@ export function ViewSelector({ tableId, onViewChange, availableColumns = [] }) {
                 setBuilderFilters([]);
                 // Default: all columns visible
                 setBuilderColumnVisibility({});
+                setBuilderGroupByField('');
             }
             setActiveTab('filters');
         }
@@ -146,11 +149,28 @@ export function ViewSelector({ tableId, onViewChange, availableColumns = [] }) {
         try {
             // Only include columnVisibility if there are hidden columns
             const hasHiddenColumns = Object.values(builderColumnVisibility).some((v) => v === false);
+            // Build groupBy config with sortOrder from column options
+            let groupByConfig;
+            if (builderGroupByField) {
+                const groupColumn = availableColumns.find((c) => c.key === builderGroupByField);
+                if (groupColumn?.options && groupColumn.options.some((opt) => opt.sortOrder !== undefined)) {
+                    // Sort options by their sortOrder, then extract values
+                    const sortedOptions = [...groupColumn.options].sort((a, b) => (a.sortOrder ?? Infinity) - (b.sortOrder ?? Infinity));
+                    groupByConfig = {
+                        field: builderGroupByField,
+                        sortOrder: sortedOptions.map((opt) => opt.value),
+                    };
+                }
+                else {
+                    groupByConfig = { field: builderGroupByField };
+                }
+            }
             const viewData = {
                 name: builderName.trim(),
                 description: builderDescription.trim() || undefined,
                 filters: builderFilters.filter((f) => f.field && f.operator),
                 columnVisibility: hasHiddenColumns ? builderColumnVisibility : undefined,
+                groupBy: groupByConfig,
             };
             if (editingView) {
                 await updateView(editingView.id, viewData);
@@ -311,7 +331,12 @@ export function ViewSelector({ tableId, onViewChange, availableColumns = [] }) {
             borderRadius: radius.sm,
         }),
     };
-    return (_jsxs("div", { style: { position: 'relative' }, children: [_jsxs(Button, { variant: "secondary", size: "sm", disabled: loading, onClick: () => setDropdownOpen(!dropdownOpen), children: [_jsx(Filter, { size: 14, style: { marginRight: spacing.xs } }), currentView?.name || 'All Items', _jsx(ChevronDown, { size: 14, style: { marginLeft: spacing.xs } })] }), dropdownOpen && (_jsxs(_Fragment, { children: [_jsx("div", { onClick: () => setDropdownOpen(false), style: styles({ position: 'fixed', inset: 0, zIndex: 40 }) }), _jsxs("div", { style: dropdownStyles.container, children: [systemViews.length > 0 && (_jsxs(_Fragment, { children: [_jsx("div", { style: dropdownStyles.sectionHeader, children: "Default Views" }), systemViews.map((view) => (_jsxs("button", { onClick: () => {
+    return (_jsxs("div", { style: { position: 'relative' }, children: [_jsxs(Button, { variant: "secondary", size: "sm", disabled: loading, onClick: () => setDropdownOpen(!dropdownOpen), children: [_jsx(Filter, { size: 14, style: { marginRight: spacing.xs } }), currentView?.name || 'All Items', _jsx(ChevronDown, { size: 14, style: { marginLeft: spacing.xs } })] }), dropdownOpen && (_jsxs(_Fragment, { children: [_jsx("div", { onClick: () => setDropdownOpen(false), style: styles({ position: 'fixed', inset: 0, zIndex: 40 }) }), _jsxs("div", { style: dropdownStyles.container, children: [views.length === 0 && !loading && (_jsx("div", { style: styles({
+                                    padding: spacing.md,
+                                    textAlign: 'center',
+                                    color: colors.text.muted,
+                                    fontSize: ts.bodySmall.fontSize,
+                                }), children: "No views yet. Create your first view to save filters and column preferences." })), systemViews.length > 0 && (_jsxs(_Fragment, { children: [_jsx("div", { style: dropdownStyles.sectionHeader, children: "Default Views" }), systemViews.map((view) => (_jsxs("button", { onClick: () => {
                                             selectView(view);
                                             setDropdownOpen(false);
                                         }, style: styles({
@@ -402,7 +427,27 @@ export function ViewSelector({ tableId, onViewChange, availableColumns = [] }) {
                                                 padding: '2px 6px',
                                                 borderRadius: radius.full,
                                                 fontWeight: '600',
-                                            }), children: [Object.values(builderColumnVisibility).filter((v) => v === false).length, " hidden"] }))] })] }), activeTab === 'filters' && (_jsxs("div", { style: styles({ display: 'flex', flexDirection: 'column', gap: spacing.md }), children: [_jsx("div", { style: styles({ display: 'flex', justifyContent: 'flex-end' }), children: _jsxs(Button, { variant: "secondary", size: "sm", onClick: handleAddFilter, children: [_jsx(Plus, { size: 14, style: { marginRight: spacing.xs } }), "Add Filter"] }) }), builderFilters.length === 0 ? (_jsx("div", { style: styles({
+                                            }), children: [Object.values(builderColumnVisibility).filter((v) => v === false).length, " hidden"] }))] }), _jsxs("button", { onClick: () => setActiveTab('grouping'), style: styles({
+                                        padding: `${spacing.sm} ${spacing.md}`,
+                                        fontSize: ts.body.fontSize,
+                                        fontWeight: activeTab === 'grouping' ? ts.label.fontWeight : 'normal',
+                                        color: activeTab === 'grouping' ? colors.primary.default : colors.text.muted,
+                                        background: 'none',
+                                        border: 'none',
+                                        borderBottom: activeTab === 'grouping' ? `2px solid ${colors.primary.default}` : '2px solid transparent',
+                                        marginBottom: '-1px',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: spacing.xs,
+                                    }), children: [_jsx(Layers, { size: 14 }), "Grouping", builderGroupByField && (_jsx("span", { style: styles({
+                                                backgroundColor: colors.info?.default || '#3b82f6',
+                                                color: '#fff',
+                                                fontSize: '11px',
+                                                padding: '2px 6px',
+                                                borderRadius: radius.full,
+                                                fontWeight: '600',
+                                            }), children: "1" }))] })] }), activeTab === 'filters' && (_jsxs("div", { style: styles({ display: 'flex', flexDirection: 'column', gap: spacing.md }), children: [_jsx("div", { style: styles({ display: 'flex', justifyContent: 'flex-end' }), children: _jsxs(Button, { variant: "secondary", size: "sm", onClick: handleAddFilter, children: [_jsx(Plus, { size: 14, style: { marginRight: spacing.xs } }), "Add Filter"] }) }), builderFilters.length === 0 ? (_jsx("div", { style: styles({
                                         padding: spacing.xl,
                                         textAlign: 'center',
                                         color: colors.text.muted,
@@ -479,7 +524,65 @@ export function ViewSelector({ tableId, onViewChange, availableColumns = [] }) {
                                                         hidden[col.key] = false;
                                                 });
                                                 setBuilderColumnVisibility(hidden);
-                                            }, children: "Hide All" })] })] })), _jsxs("div", { style: styles({
+                                            }, children: "Hide All" })] })] })), activeTab === 'grouping' && (_jsxs("div", { style: styles({ display: 'flex', flexDirection: 'column', gap: spacing.md }), children: [_jsx("p", { style: styles({ fontSize: ts.bodySmall.fontSize, color: colors.text.muted, margin: 0 }), children: "Group rows by a field. For select fields with sort order, groups will be ordered accordingly." }), _jsx("div", { style: styles({
+                                        padding: spacing.md,
+                                        backgroundColor: colors.bg.elevated,
+                                        borderRadius: radius.md,
+                                        border: `1px solid ${colors.border.subtle}`,
+                                    }), children: _jsx(Select, { label: "Group By Field", value: builderGroupByField, onChange: setBuilderGroupByField, options: [
+                                            { value: '', label: 'No grouping' },
+                                            ...availableColumns.map((c) => ({
+                                                value: c.key,
+                                                label: c.label + (c.type === 'select' && c.options?.some((o) => o.sortOrder !== undefined) ? ' (has sort order)' : ''),
+                                            })),
+                                        ], placeholder: "Select field to group by..." }) }), builderGroupByField && (() => {
+                                    const selectedColumn = availableColumns.find((c) => c.key === builderGroupByField);
+                                    const hasOptions = selectedColumn?.type === 'select' && selectedColumn.options && selectedColumn.options.length > 0;
+                                    const hasSortOrder = hasOptions && selectedColumn.options?.some((o) => o.sortOrder !== undefined);
+                                    if (hasOptions) {
+                                        const sortedOptions = hasSortOrder
+                                            ? [...(selectedColumn.options || [])].sort((a, b) => (a.sortOrder ?? Infinity) - (b.sortOrder ?? Infinity))
+                                            : selectedColumn.options || [];
+                                        return (_jsxs("div", { style: styles({
+                                                padding: spacing.md,
+                                                backgroundColor: colors.bg.surface,
+                                                borderRadius: radius.md,
+                                                border: `1px solid ${colors.border.subtle}`,
+                                            }), children: [_jsxs("div", { style: styles({
+                                                        fontSize: ts.bodySmall.fontSize,
+                                                        fontWeight: ts.label.fontWeight,
+                                                        color: colors.text.secondary,
+                                                        marginBottom: spacing.sm,
+                                                    }), children: ["Group Order Preview", hasSortOrder && (_jsx("span", { style: styles({
+                                                                marginLeft: spacing.sm,
+                                                                color: colors.success?.default || '#22c55e',
+                                                                fontWeight: 'normal',
+                                                            }), children: "(using sortOrder)" }))] }), _jsx("div", { style: styles({ display: 'flex', flexDirection: 'column', gap: spacing.xs }), children: sortedOptions.map((opt, idx) => (_jsxs("div", { style: styles({
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            gap: spacing.sm,
+                                                            padding: `${spacing.xs} ${spacing.sm}`,
+                                                            backgroundColor: colors.bg.elevated,
+                                                            borderRadius: radius.sm,
+                                                            fontSize: ts.bodySmall.fontSize,
+                                                        }), children: [_jsxs("span", { style: styles({
+                                                                    color: colors.text.muted,
+                                                                    minWidth: '20px',
+                                                                }), children: [idx + 1, "."] }), _jsx("span", { style: styles({ color: colors.text.primary }), children: opt.label }), hasSortOrder && opt.sortOrder !== undefined && (_jsxs("span", { style: styles({
+                                                                    marginLeft: 'auto',
+                                                                    color: colors.text.muted,
+                                                                    fontSize: '11px',
+                                                                }), children: ["order: ", opt.sortOrder] }))] }, opt.value))) })] }));
+                                    }
+                                    return (_jsx("div", { style: styles({
+                                            padding: spacing.md,
+                                            textAlign: 'center',
+                                            color: colors.text.muted,
+                                            fontSize: ts.bodySmall.fontSize,
+                                            border: `1px dashed ${colors.border.subtle}`,
+                                            borderRadius: radius.md,
+                                        }), children: "Groups will be sorted alphabetically by value." }));
+                                })(), builderGroupByField && (_jsx(Button, { variant: "secondary", size: "sm", onClick: () => setBuilderGroupByField(''), style: { alignSelf: 'flex-start' }, children: "Clear Grouping" }))] })), _jsxs("div", { style: styles({
                                 display: 'flex',
                                 gap: spacing.md,
                                 justifyContent: 'flex-end',

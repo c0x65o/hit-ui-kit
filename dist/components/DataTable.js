@@ -36,11 +36,11 @@ export function DataTable({ columns, data, searchable = true, exportable = true,
 // Server-side pagination
 total, page: externalPage, onPageChange, manualPagination = false, 
 // Refresh
-onRefresh, refreshing = false, 
+onRefresh, refreshing = false, showRefresh = true, // Default to showing refresh button
 // Grouping
-groupBy, 
+groupBy: groupByProp, groupPageSize = 5, 
 // View system
-tableId, enableViews, onViewFiltersChange, }) {
+tableId, enableViews, onViewFiltersChange, onViewGroupByChange, }) {
     // Auto-enable views if tableId is provided (unless explicitly disabled)
     const viewsEnabled = enableViews !== undefined ? enableViews : !!tableId;
     const { colors, textStyles: ts, spacing } = useThemeTokens();
@@ -53,6 +53,17 @@ tableId, enableViews, onViewFiltersChange, }) {
         // We'll populate this after we have data
         return new Set();
     });
+    // View-based groupBy (overrides prop when set by view)
+    const [viewGroupBy, setViewGroupBy] = useState(null);
+    // Per-group pagination state: { groupKey: currentPage }
+    const [groupPages, setGroupPages] = useState({});
+    // Effective groupBy - view setting takes precedence over prop
+    const groupBy = viewGroupBy ? {
+        field: viewGroupBy.field,
+        sortOrder: viewGroupBy.sortOrder,
+        renderLabel: groupByProp?.renderLabel,
+        defaultCollapsed: groupByProp?.defaultCollapsed,
+    } : groupByProp;
     // Use external page if provided (server-side), otherwise use internal state (client-side)
     const [internalPage, setInternalPage] = useState(0);
     const currentPage = manualPagination && externalPage !== undefined ? externalPage - 1 : internalPage;
@@ -192,7 +203,7 @@ tableId, enableViews, onViewFiltersChange, }) {
                 return String(a.groupValue).localeCompare(String(b.groupValue));
             });
         }
-        // Build flat structure with group headers and rows
+        // Build flat structure with group headers, paginated rows, and show-more buttons
         const result = [];
         for (const { key, groupValue, groupData } of groupEntries) {
             result.push({
@@ -203,17 +214,34 @@ tableId, enableViews, onViewFiltersChange, }) {
             });
             // Add rows if group is not collapsed
             if (!collapsedGroups.has(key)) {
-                groupData.forEach((rowData, idx) => {
+                const currentGroupPage = groupPages[key] ?? 0;
+                const totalItems = groupData.length;
+                const totalPages = Math.ceil(totalItems / groupPageSize);
+                const startIdx = 0;
+                const endIdx = (currentGroupPage + 1) * groupPageSize;
+                const visibleItems = groupData.slice(startIdx, endIdx);
+                const remainingCount = totalItems - endIdx;
+                visibleItems.forEach((rowData, idx) => {
                     result.push({
                         type: 'row',
                         data: rowData,
                         index: filteredRows.findIndex((r) => r.original === rowData),
                     });
                 });
+                // Add "show more" row if there are more items
+                if (remainingCount > 0) {
+                    result.push({
+                        type: 'show-more',
+                        groupKey: key,
+                        remainingCount,
+                        currentPage: currentGroupPage,
+                        totalPages,
+                    });
+                }
             }
         }
         return result;
-    }, [groupBy, table, collapsedGroups, globalFilter, sorting, pagination]);
+    }, [groupBy, table, collapsedGroups, globalFilter, sorting, pagination, groupPages, groupPageSize]);
     // Export to CSV
     const handleExport = () => {
         const visibleColumns = table.getVisibleFlatColumns();
@@ -258,7 +286,7 @@ tableId, enableViews, onViewFiltersChange, }) {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
         }
-      ` }), _jsxs("div", { style: { display: 'flex', flexDirection: 'column', gap: spacing.lg }, children: [(searchable || exportable || showColumnVisibility || onRefresh || viewsEnabled) && (_jsxs("div", { style: styles({
+      ` }), _jsxs("div", { style: { display: 'flex', flexDirection: 'column', gap: spacing.lg }, children: [(searchable || exportable || showColumnVisibility || showRefresh || viewsEnabled) && (_jsxs("div", { style: styles({
                             display: 'flex',
                             gap: spacing.md,
                             alignItems: 'center',
@@ -276,6 +304,14 @@ tableId, enableViews, onViewFiltersChange, }) {
                                     // Apply column visibility from view
                                     if (view?.columnVisibility) {
                                         setColumnVisibility(view.columnVisibility);
+                                    }
+                                    // Apply groupBy from view
+                                    const newGroupBy = view?.groupBy || null;
+                                    setViewGroupBy(newGroupBy);
+                                    // Reset per-group pagination when view changes
+                                    setGroupPages({});
+                                    if (onViewGroupByChange) {
+                                        onViewGroupByChange(newGroupBy);
                                     }
                                 } })), searchable && (_jsxs("div", { style: { flex: '1', minWidth: '200px', maxWidth: '400px', position: 'relative' }, children: [_jsx(Search, { size: 16, style: {
                                             position: 'absolute',
@@ -296,7 +332,7 @@ tableId, enableViews, onViewFiltersChange, }) {
                                             fontSize: ts.body.fontSize,
                                             outline: 'none',
                                             boxSizing: 'border-box',
-                                        }) })] })), _jsxs("div", { style: { display: 'flex', gap: spacing.sm }, children: [onRefresh && (_jsxs(Button, { variant: "secondary", size: "sm", onClick: onRefresh, disabled: refreshing || loading, children: [_jsx(RefreshCw, { size: 16, style: {
+                                        }) })] })), _jsxs("div", { style: { display: 'flex', gap: spacing.sm }, children: [showRefresh && (_jsxs(Button, { variant: "secondary", size: "sm", onClick: onRefresh || (() => { }), disabled: !onRefresh || refreshing || loading, title: !onRefresh ? 'Refresh handler not provided' : undefined, children: [_jsx(RefreshCw, { size: 16, style: {
                                                     marginRight: spacing.xs,
                                                     animation: (refreshing || loading) ? 'spin 1s linear infinite' : undefined,
                                                 } }), "Refresh"] })), showColumnVisibility && (_jsx(Dropdown, { trigger: _jsxs(Button, { variant: "secondary", size: "sm", children: [_jsx(Eye, { size: 16, style: { marginRight: spacing.xs } }), "Columns"] }), items: table
@@ -359,6 +395,21 @@ tableId, enableViews, onViewFiltersChange, }) {
                                                                     transition: 'transform 150ms ease',
                                                                     color: colors.text.muted,
                                                                 } }), _jsx("div", { style: { display: 'flex', alignItems: 'center', gap: spacing.xs, flex: 1 }, children: typeof groupLabel === 'string' ? _jsx("span", { children: groupLabel }) : groupLabel }), _jsxs("span", { style: { color: colors.text.muted, fontSize: ts.bodySmall.fontSize }, children: ["(", item.groupData.length, ")"] })] }) }) }, `group-${item.groupKey}`));
+                                        }
+                                        else if (item.type === 'show-more') {
+                                            // "Show more" row for per-group pagination
+                                            return (_jsx("tr", { style: styles({
+                                                    borderBottom: `1px solid ${colors.border.subtle}`,
+                                                    backgroundColor: colors.bg.surface,
+                                                }), children: _jsx("td", { colSpan: table.getVisibleFlatColumns().length, style: styles({
+                                                        padding: `${spacing.sm} ${spacing.lg}`,
+                                                        textAlign: 'center',
+                                                    }), children: _jsxs(Button, { variant: "ghost", size: "sm", onClick: () => {
+                                                            setGroupPages((prev) => ({
+                                                                ...prev,
+                                                                [item.groupKey]: (prev[item.groupKey] ?? 0) + 1,
+                                                            }));
+                                                        }, children: [_jsx(ChevronDown, { size: 14, style: { marginRight: spacing.xs } }), "Show ", Math.min(item.remainingCount, groupPageSize), " more (", item.remainingCount, " remaining)"] }) }) }, `show-more-${item.groupKey}`));
                                         }
                                         else {
                                             // Regular row - find the corresponding table row

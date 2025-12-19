@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { ChevronDown, Plus, Edit2, Trash2, Star, Filter, Trash, Eye, EyeOff, Columns } from 'lucide-react';
+import { ChevronDown, Plus, Edit2, Trash2, Star, Filter, Trash, Eye, EyeOff, Columns, Layers } from 'lucide-react';
 import { useTableView, type TableView, type TableViewFilter } from '../hooks/useTableView.js';
 import { useThemeTokens } from '../theme/index.js';
 import { Button } from './Button.js';
@@ -44,8 +44,8 @@ export interface ViewColumnDefinition {
   label: string;
   /** Field type: 'string' | 'number' | 'date' | 'boolean' | 'select' | 'multiselect' */
   type?: 'string' | 'number' | 'date' | 'boolean' | 'select' | 'multiselect';
-  /** Options for select/multiselect fields */
-  options?: Array<{ value: string; label: string }>;
+  /** Options for select/multiselect fields (with optional sortOrder for grouping) */
+  options?: Array<{ value: string; label: string; sortOrder?: number }>;
   /** Whether this column can be hidden (default: true) */
   hideable?: boolean;
 }
@@ -87,13 +87,14 @@ export function ViewSelector({ tableId, onViewChange, availableColumns = [] }: V
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [showBuilder, setShowBuilder] = useState(false);
   const [editingView, setEditingView] = useState<TableView | null>(null);
-  const [activeTab, setActiveTab] = useState<'filters' | 'columns'>('filters');
+  const [activeTab, setActiveTab] = useState<'filters' | 'columns' | 'grouping'>('filters');
   
   // Builder form state
   const [builderName, setBuilderName] = useState('');
   const [builderDescription, setBuilderDescription] = useState('');
   const [builderFilters, setBuilderFilters] = useState<TableViewFilter[]>([]);
   const [builderColumnVisibility, setBuilderColumnVisibility] = useState<Record<string, boolean>>({});
+  const [builderGroupByField, setBuilderGroupByField] = useState<string>('');
   const [builderSaving, setBuilderSaving] = useState(false);
 
   const systemViews = views.filter((v) => v.isSystem);
@@ -110,12 +111,14 @@ export function ViewSelector({ tableId, onViewChange, availableColumns = [] }: V
         setBuilderDescription(editingView.description || '');
         setBuilderFilters(editingView.filters || []);
         setBuilderColumnVisibility(editingView.columnVisibility || {});
+        setBuilderGroupByField(editingView.groupBy?.field || '');
       } else {
         setBuilderName('');
         setBuilderDescription('');
         setBuilderFilters([]);
         // Default: all columns visible
         setBuilderColumnVisibility({});
+        setBuilderGroupByField('');
       }
       setActiveTab('filters');
     }
@@ -184,11 +187,30 @@ export function ViewSelector({ tableId, onViewChange, availableColumns = [] }: V
       // Only include columnVisibility if there are hidden columns
       const hasHiddenColumns = Object.values(builderColumnVisibility).some((v) => v === false);
       
+      // Build groupBy config with sortOrder from column options
+      let groupByConfig: { field: string; sortOrder?: string[] } | undefined;
+      if (builderGroupByField) {
+        const groupColumn = availableColumns.find((c) => c.key === builderGroupByField);
+        if (groupColumn?.options && groupColumn.options.some((opt) => opt.sortOrder !== undefined)) {
+          // Sort options by their sortOrder, then extract values
+          const sortedOptions = [...groupColumn.options].sort((a, b) => 
+            (a.sortOrder ?? Infinity) - (b.sortOrder ?? Infinity)
+          );
+          groupByConfig = {
+            field: builderGroupByField,
+            sortOrder: sortedOptions.map((opt) => opt.value),
+          };
+        } else {
+          groupByConfig = { field: builderGroupByField };
+        }
+      }
+      
       const viewData = {
         name: builderName.trim(),
         description: builderDescription.trim() || undefined,
         filters: builderFilters.filter((f) => f.field && f.operator),
         columnVisibility: hasHiddenColumns ? builderColumnVisibility : undefined,
+        groupBy: groupByConfig,
       };
 
       if (editingView) {
@@ -663,6 +685,38 @@ export function ViewSelector({ tableId, onViewChange, availableColumns = [] }: V
                   </span>
                 )}
               </button>
+              <button
+                onClick={() => setActiveTab('grouping')}
+                style={styles({
+                  padding: `${spacing.sm} ${spacing.md}`,
+                  fontSize: ts.body.fontSize,
+                  fontWeight: activeTab === 'grouping' ? ts.label.fontWeight : 'normal',
+                  color: activeTab === 'grouping' ? colors.primary.default : colors.text.muted,
+                  background: 'none',
+                  border: 'none',
+                  borderBottom: activeTab === 'grouping' ? `2px solid ${colors.primary.default}` : '2px solid transparent',
+                  marginBottom: '-1px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: spacing.xs,
+                })}
+              >
+                <Layers size={14} />
+                Grouping
+                {builderGroupByField && (
+                  <span style={styles({
+                    backgroundColor: colors.info?.default || '#3b82f6',
+                    color: '#fff',
+                    fontSize: '11px',
+                    padding: '2px 6px',
+                    borderRadius: radius.full,
+                    fontWeight: '600',
+                  })}>
+                    1
+                  </span>
+                )}
+              </button>
             </div>
 
             {/* Filters Tab */}
@@ -842,6 +896,134 @@ export function ViewSelector({ tableId, onViewChange, availableColumns = [] }: V
                     Hide All
                   </Button>
                 </div>
+              </div>
+            )}
+
+            {/* Grouping Tab */}
+            {activeTab === 'grouping' && (
+              <div style={styles({ display: 'flex', flexDirection: 'column', gap: spacing.md })}>
+                <p style={styles({ fontSize: ts.bodySmall.fontSize, color: colors.text.muted, margin: 0 })}>
+                  Group rows by a field. For select fields with sort order, groups will be ordered accordingly.
+                </p>
+
+                <div style={styles({ 
+                  padding: spacing.md,
+                  backgroundColor: colors.bg.elevated,
+                  borderRadius: radius.md,
+                  border: `1px solid ${colors.border.subtle}`,
+                })}>
+                  <Select
+                    label="Group By Field"
+                    value={builderGroupByField}
+                    onChange={setBuilderGroupByField}
+                    options={[
+                      { value: '', label: 'No grouping' },
+                      ...availableColumns.map((c) => ({ 
+                        value: c.key, 
+                        label: c.label + (c.type === 'select' && c.options?.some((o) => o.sortOrder !== undefined) ? ' (has sort order)' : ''),
+                      })),
+                    ]}
+                    placeholder="Select field to group by..."
+                  />
+                </div>
+
+                {builderGroupByField && (() => {
+                  const selectedColumn = availableColumns.find((c) => c.key === builderGroupByField);
+                  const hasOptions = selectedColumn?.type === 'select' && selectedColumn.options && selectedColumn.options.length > 0;
+                  const hasSortOrder = hasOptions && selectedColumn.options?.some((o) => o.sortOrder !== undefined);
+                  
+                  if (hasOptions) {
+                    const sortedOptions = hasSortOrder
+                      ? [...(selectedColumn.options || [])].sort((a, b) => (a.sortOrder ?? Infinity) - (b.sortOrder ?? Infinity))
+                      : selectedColumn.options || [];
+                    
+                    return (
+                      <div style={styles({
+                        padding: spacing.md,
+                        backgroundColor: colors.bg.surface,
+                        borderRadius: radius.md,
+                        border: `1px solid ${colors.border.subtle}`,
+                      })}>
+                        <div style={styles({ 
+                          fontSize: ts.bodySmall.fontSize, 
+                          fontWeight: ts.label.fontWeight,
+                          color: colors.text.secondary,
+                          marginBottom: spacing.sm,
+                        })}>
+                          Group Order Preview
+                          {hasSortOrder && (
+                            <span style={styles({ 
+                              marginLeft: spacing.sm, 
+                              color: colors.success?.default || '#22c55e',
+                              fontWeight: 'normal',
+                            })}>
+                              (using sortOrder)
+                            </span>
+                          )}
+                        </div>
+                        <div style={styles({ display: 'flex', flexDirection: 'column', gap: spacing.xs })}>
+                          {sortedOptions.map((opt, idx) => (
+                            <div 
+                              key={opt.value}
+                              style={styles({
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: spacing.sm,
+                                padding: `${spacing.xs} ${spacing.sm}`,
+                                backgroundColor: colors.bg.elevated,
+                                borderRadius: radius.sm,
+                                fontSize: ts.bodySmall.fontSize,
+                              })}
+                            >
+                              <span style={styles({ 
+                                color: colors.text.muted,
+                                minWidth: '20px',
+                              })}>
+                                {idx + 1}.
+                              </span>
+                              <span style={styles({ color: colors.text.primary })}>
+                                {opt.label}
+                              </span>
+                              {hasSortOrder && opt.sortOrder !== undefined && (
+                                <span style={styles({ 
+                                  marginLeft: 'auto',
+                                  color: colors.text.muted,
+                                  fontSize: '11px',
+                                })}>
+                                  order: {opt.sortOrder}
+                                </span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  }
+                  
+                  return (
+                    <div style={styles({
+                      padding: spacing.md,
+                      textAlign: 'center',
+                      color: colors.text.muted,
+                      fontSize: ts.bodySmall.fontSize,
+                      border: `1px dashed ${colors.border.subtle}`,
+                      borderRadius: radius.md,
+                    })}>
+                      Groups will be sorted alphabetically by value.
+                    </div>
+                  );
+                })()}
+
+                {builderGroupByField && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setBuilderGroupByField('')}
+                    style={{ alignSelf: 'flex-start' }}
+                  >
+                    Clear Grouping
+                  </Button>
+                )}
               </div>
             )}
 

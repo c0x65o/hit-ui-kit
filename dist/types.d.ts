@@ -84,6 +84,13 @@ export interface TableProps {
     emptyMessage?: string;
     loading?: boolean;
 }
+/** Option for select/multiselect fields in view builder */
+export interface FilterOption {
+    value: string;
+    label: string;
+    /** Sort order for grouping - lower numbers appear first */
+    sortOrder?: number;
+}
 export interface DataTableColumn<TData = Record<string, unknown>> extends Omit<TableColumn, 'render'> {
     sortable?: boolean;
     hideable?: boolean;
@@ -91,10 +98,7 @@ export interface DataTableColumn<TData = Record<string, unknown>> extends Omit<T
     /** Field type for view builder (affects filter operators and value input) */
     filterType?: 'string' | 'number' | 'date' | 'boolean' | 'select' | 'multiselect';
     /** Options for select/multiselect fields in view builder */
-    filterOptions?: Array<{
-        value: string;
-        label: string;
-    }>;
+    filterOptions?: FilterOption[];
 }
 export interface GroupConfig<TData = Record<string, unknown>> {
     /** Field key to group by */
@@ -127,7 +131,10 @@ export interface DataTableProps<TData extends Record<string, unknown> = Record<s
     manualPagination?: boolean;
     onRefresh?: () => void;
     refreshing?: boolean;
+    showRefresh?: boolean;
     groupBy?: GroupConfig<TData>;
+    /** Number of items to show per group initially (enables per-group pagination) */
+    groupPageSize?: number;
     tableId?: string;
     enableViews?: boolean;
     onViewFiltersChange?: (filters: Array<{
@@ -135,6 +142,10 @@ export interface DataTableProps<TData extends Record<string, unknown> = Record<s
         operator: string;
         value: any;
     }>) => void;
+    onViewGroupByChange?: (groupBy: {
+        field: string;
+        sortOrder?: string[];
+    } | null) => void;
 }
 export interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
     variant?: 'default' | 'success' | 'warning' | 'error' | 'info';

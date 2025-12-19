@@ -83,11 +83,13 @@ export function DataTable<TData extends Record<string, unknown>>({
   refreshing = false,
   showRefresh = true, // Default to showing refresh button
   // Grouping
-  groupBy,
+  groupBy: groupByProp,
+  groupPageSize = 5,
   // View system
   tableId,
   enableViews,
   onViewFiltersChange,
+  onViewGroupByChange,
 }: DataTableProps<TData>) {
   // Auto-enable views if tableId is provided (unless explicitly disabled)
   const viewsEnabled = enableViews !== undefined ? enableViews : !!tableId;
@@ -104,6 +106,20 @@ export function DataTable<TData extends Record<string, unknown>>({
     // We'll populate this after we have data
     return new Set();
   });
+  
+  // View-based groupBy (overrides prop when set by view)
+  const [viewGroupBy, setViewGroupBy] = useState<{ field: string; sortOrder?: string[] } | null>(null);
+  
+  // Per-group pagination state: { groupKey: currentPage }
+  const [groupPages, setGroupPages] = useState<Record<string, number>>({});
+  
+  // Effective groupBy - view setting takes precedence over prop
+  const groupBy = viewGroupBy ? {
+    field: viewGroupBy.field,
+    sortOrder: viewGroupBy.sortOrder,
+    renderLabel: groupByProp?.renderLabel,
+    defaultCollapsed: groupByProp?.defaultCollapsed,
+  } : groupByProp;
   
   // Use external page if provided (server-side), otherwise use internal state (client-side)
   const [internalPage, setInternalPage] = useState(0);
@@ -190,7 +206,10 @@ export function DataTable<TData extends Record<string, unknown>>({
   });
 
   // Grouping logic
-  type GroupedRow = { type: 'group'; groupValue: unknown; groupData: TData[]; groupKey: string } | { type: 'row'; data: TData; index: number };
+  type GroupedRow = 
+    | { type: 'group'; groupValue: unknown; groupData: TData[]; groupKey: string } 
+    | { type: 'row'; data: TData; index: number }
+    | { type: 'show-more'; groupKey: string; remainingCount: number; currentPage: number; totalPages: number };
   
   const groupedRows = useMemo<GroupedRow[]>(() => {
     if (!groupBy) {
@@ -253,7 +272,7 @@ export function DataTable<TData extends Record<string, unknown>>({
       });
     }
 
-    // Build flat structure with group headers and rows
+    // Build flat structure with group headers, paginated rows, and show-more buttons
     const result: GroupedRow[] = [];
     for (const { key, groupValue, groupData } of groupEntries) {
       result.push({
@@ -265,18 +284,37 @@ export function DataTable<TData extends Record<string, unknown>>({
       
       // Add rows if group is not collapsed
       if (!collapsedGroups.has(key)) {
-        groupData.forEach((rowData, idx) => {
+        const currentGroupPage = groupPages[key] ?? 0;
+        const totalItems = groupData.length;
+        const totalPages = Math.ceil(totalItems / groupPageSize);
+        const startIdx = 0;
+        const endIdx = (currentGroupPage + 1) * groupPageSize;
+        const visibleItems = groupData.slice(startIdx, endIdx);
+        const remainingCount = totalItems - endIdx;
+        
+        visibleItems.forEach((rowData, idx) => {
           result.push({
             type: 'row',
             data: rowData,
             index: filteredRows.findIndex((r: any) => r.original === rowData),
           });
         });
+        
+        // Add "show more" row if there are more items
+        if (remainingCount > 0) {
+          result.push({
+            type: 'show-more',
+            groupKey: key,
+            remainingCount,
+            currentPage: currentGroupPage,
+            totalPages,
+          });
+        }
       }
     }
 
     return result;
-  }, [groupBy, table, collapsedGroups, globalFilter, sorting, pagination]);
+  }, [groupBy, table, collapsedGroups, globalFilter, sorting, pagination, groupPages, groupPageSize]);
 
   // Export to CSV
   const handleExport = () => {
@@ -363,6 +401,14 @@ export function DataTable<TData extends Record<string, unknown>>({
                 // Apply column visibility from view
                 if (view?.columnVisibility) {
                   setColumnVisibility(view.columnVisibility);
+                }
+                // Apply groupBy from view
+                const newGroupBy = view?.groupBy || null;
+                setViewGroupBy(newGroupBy);
+                // Reset per-group pagination when view changes
+                setGroupPages({});
+                if (onViewGroupByChange) {
+                  onViewGroupByChange(newGroupBy);
                 }
               }}
             />
@@ -563,6 +609,39 @@ export function DataTable<TData extends Record<string, unknown>>({
                               ({item.groupData.length})
                             </span>
                           </div>
+                        </td>
+                      </tr>
+                    );
+                  } else if (item.type === 'show-more') {
+                    // "Show more" row for per-group pagination
+                    return (
+                      <tr
+                        key={`show-more-${item.groupKey}`}
+                        style={styles({
+                          borderBottom: `1px solid ${colors.border.subtle}`,
+                          backgroundColor: colors.bg.surface,
+                        })}
+                      >
+                        <td
+                          colSpan={table.getVisibleFlatColumns().length}
+                          style={styles({
+                            padding: `${spacing.sm} ${spacing.lg}`,
+                            textAlign: 'center',
+                          })}
+                        >
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setGroupPages((prev) => ({
+                                ...prev,
+                                [item.groupKey]: (prev[item.groupKey] ?? 0) + 1,
+                              }));
+                            }}
+                          >
+                            <ChevronDown size={14} style={{ marginRight: spacing.xs }} />
+                            Show {Math.min(item.remainingCount, groupPageSize)} more ({item.remainingCount} remaining)
+                          </Button>
                         </td>
                       </tr>
                     );

@@ -7,6 +7,10 @@ export interface TableViewFilter {
     metadata?: Record<string, unknown>;
     sortOrder?: number;
 }
+export interface TableViewGroupBy {
+    field: string;
+    sortOrder?: string[];
+}
 export interface TableView {
     id: string;
     userId: string;
@@ -21,6 +25,7 @@ export interface TableView {
         id: string;
         desc: boolean;
     }> | null;
+    groupBy?: TableViewGroupBy | null;
     metadata?: Record<string, unknown> | null;
     createdAt: string;
     updatedAt: string;
@@ -60,6 +65,7 @@ export declare function useTableView({ tableId, onViewChange }: UseTableViewOpti
             id: string;
             desc: boolean;
         }>;
+        groupBy?: TableViewGroupBy;
         isDefault?: boolean;
         isSystem?: boolean;
     }) => Promise<any>;
