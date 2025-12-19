@@ -1,11 +1,13 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { ChevronDown, Plus, Edit2, Trash2, Star, Filter, Trash, Eye, EyeOff, Columns, Layers, Share2, Users, X } from 'lucide-react';
+import { ChevronDown, Plus, Edit2, Trash2, Star, Filter, Trash, Eye, EyeOff, Columns, Layers, Share2, Users, X, GripVertical } from 'lucide-react';
 import { useTableView, type TableView, type TableViewFilter, type TableViewShare } from '../hooks/useTableView.js';
 import { useThemeTokens } from '../theme/index.js';
+import { useAlertDialog } from '../hooks/useAlertDialog.js';
 import { Button } from './Button.js';
 import { Modal } from './Modal.js';
+import { AlertDialog } from './AlertDialog.js';
 import { Input } from './Input.js';
 import { TextArea } from './TextArea.js';
 import { Select } from './Select.js';
@@ -83,6 +85,7 @@ export function ViewSelector({ tableId, onViewChange, availableColumns = [] }: V
     tableId,
     onViewChange,
   });
+  const alertDialog = useAlertDialog();
   
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [showBuilder, setShowBuilder] = useState(false);
@@ -95,7 +98,9 @@ export function ViewSelector({ tableId, onViewChange, availableColumns = [] }: V
   const [builderFilters, setBuilderFilters] = useState<TableViewFilter[]>([]);
   const [builderColumnVisibility, setBuilderColumnVisibility] = useState<Record<string, boolean>>({});
   const [builderGroupByField, setBuilderGroupByField] = useState<string>('');
+  const [builderGroupBySortOrder, setBuilderGroupBySortOrder] = useState<string[]>([]);
   const [builderSaving, setBuilderSaving] = useState(false);
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   
   // Share state
   const [shares, setShares] = useState<TableViewShare[]>([]);
@@ -120,6 +125,7 @@ export function ViewSelector({ tableId, onViewChange, availableColumns = [] }: V
         setBuilderFilters(editingView.filters || []);
         setBuilderColumnVisibility(editingView.columnVisibility || {});
         setBuilderGroupByField(editingView.groupBy?.field || '');
+        setBuilderGroupBySortOrder(editingView.groupBy?.sortOrder || []);
         // Load shares when editing
         setSharesLoading(true);
         getShares(editingView.id)
@@ -133,6 +139,7 @@ export function ViewSelector({ tableId, onViewChange, availableColumns = [] }: V
         // Default: all columns visible
         setBuilderColumnVisibility({});
         setBuilderGroupByField('');
+        setBuilderGroupBySortOrder([]);
         setShares([]);
       }
       setActiveTab('filters');
@@ -141,6 +148,25 @@ export function ViewSelector({ tableId, onViewChange, availableColumns = [] }: V
     }
   }, [showBuilder, editingView, getShares]);
 
+  // Initialize group sort order when field changes
+  useEffect(() => {
+    if (builderGroupByField) {
+      const groupColumn = availableColumns.find((c) => c.key === builderGroupByField);
+      if (groupColumn?.options && groupColumn.options.length > 0) {
+        // If we don't have a custom sort order, initialize from column options
+        if (builderGroupBySortOrder.length === 0) {
+          const sortedOptions = groupColumn.options.some((opt) => opt.sortOrder !== undefined)
+            ? [...groupColumn.options].sort((a, b) => (a.sortOrder ?? Infinity) - (b.sortOrder ?? Infinity))
+            : groupColumn.options;
+          setBuilderGroupBySortOrder(sortedOptions.map((opt) => opt.value));
+        }
+      }
+    } else {
+      setBuilderGroupBySortOrder([]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [builderGroupByField]);
+
   // If API not available (feature pack not installed), don't render
   if (!available) {
     return null;
@@ -148,11 +174,23 @@ export function ViewSelector({ tableId, onViewChange, availableColumns = [] }: V
 
   const handleDelete = async (view: TableView, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (confirm(`Are you sure you want to delete "${view.name}"?`)) {
+    const confirmed = await alertDialog.showConfirm(
+      `Are you sure you want to delete "${view.name}"?`,
+      {
+        title: 'Delete View',
+        variant: 'warning',
+        confirmText: 'Delete',
+        cancelText: 'Cancel',
+      }
+    );
+    if (confirmed) {
       try {
         await deleteView(view.id);
       } catch (error: any) {
-        alert(error?.message || 'Failed to delete view');
+        await alertDialog.showAlert(error?.message || 'Failed to delete view', {
+          variant: 'error',
+          title: 'Error',
+        });
       }
     }
   };
@@ -195,7 +233,10 @@ export function ViewSelector({ tableId, onViewChange, availableColumns = [] }: V
 
   const handleSaveView = async () => {
     if (!builderName.trim()) {
-      alert('Please enter a view name');
+      await alertDialog.showAlert('Please enter a view name', {
+        variant: 'warning',
+        title: 'Validation Error',
+      });
       return;
     }
 
@@ -204,21 +245,29 @@ export function ViewSelector({ tableId, onViewChange, availableColumns = [] }: V
       // Only include columnVisibility if there are hidden columns
       const hasHiddenColumns = Object.values(builderColumnVisibility).some((v) => v === false);
       
-      // Build groupBy config with sortOrder from column options
+      // Build groupBy config with custom sortOrder or from column options
       let groupByConfig: { field: string; sortOrder?: string[] } | undefined;
       if (builderGroupByField) {
-        const groupColumn = availableColumns.find((c) => c.key === builderGroupByField);
-        if (groupColumn?.options && groupColumn.options.some((opt) => opt.sortOrder !== undefined)) {
-          // Sort options by their sortOrder, then extract values
-          const sortedOptions = [...groupColumn.options].sort((a, b) => 
-            (a.sortOrder ?? Infinity) - (b.sortOrder ?? Infinity)
-          );
+        // Use custom sort order if set, otherwise use column options sortOrder
+        if (builderGroupBySortOrder.length > 0) {
           groupByConfig = {
             field: builderGroupByField,
-            sortOrder: sortedOptions.map((opt) => opt.value),
+            sortOrder: builderGroupBySortOrder,
           };
         } else {
-          groupByConfig = { field: builderGroupByField };
+          const groupColumn = availableColumns.find((c) => c.key === builderGroupByField);
+          if (groupColumn?.options && groupColumn.options.some((opt) => opt.sortOrder !== undefined)) {
+            // Sort options by their sortOrder, then extract values
+            const sortedOptions = [...groupColumn.options].sort((a, b) => 
+              (a.sortOrder ?? Infinity) - (b.sortOrder ?? Infinity)
+            );
+            groupByConfig = {
+              field: builderGroupByField,
+              sortOrder: sortedOptions.map((opt) => opt.value),
+            };
+          } else {
+            groupByConfig = { field: builderGroupByField };
+          }
         }
       }
       
@@ -239,7 +288,10 @@ export function ViewSelector({ tableId, onViewChange, availableColumns = [] }: V
       setShowBuilder(false);
       setEditingView(null);
     } catch (error: any) {
-      alert(error?.message || 'Failed to save view');
+      await alertDialog.showAlert(error?.message || 'Failed to save view', {
+        variant: 'error',
+        title: 'Error',
+      });
     } finally {
       setBuilderSaving(false);
     }
@@ -251,6 +303,27 @@ export function ViewSelector({ tableId, onViewChange, availableColumns = [] }: V
       ...prev,
       [columnKey]: prev[columnKey] === false ? true : false,
     }));
+  };
+
+  // Drag and drop handlers for group order
+  const handleDragStart = (index: number) => {
+    setDraggedIndex(index);
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    if (draggedIndex === null || draggedIndex === index) return;
+    
+    const newOrder = [...builderGroupBySortOrder];
+    const draggedItem = newOrder[draggedIndex];
+    newOrder.splice(draggedIndex, 1);
+    newOrder.splice(index, 0, draggedItem);
+    setBuilderGroupBySortOrder(newOrder);
+    setDraggedIndex(index);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedIndex(null);
   };
 
   // Check if column is visible (default true if not specified)
@@ -1037,10 +1110,12 @@ export function ViewSelector({ tableId, onViewChange, availableColumns = [] }: V
                   const hasOptions = selectedColumn?.type === 'select' && selectedColumn.options && selectedColumn.options.length > 0;
                   const hasSortOrder = hasOptions && selectedColumn.options?.some((o) => o.sortOrder !== undefined);
                   
-                  if (hasOptions) {
-                    const sortedOptions = hasSortOrder
-                      ? [...(selectedColumn.options || [])].sort((a, b) => (a.sortOrder ?? Infinity) - (b.sortOrder ?? Infinity))
-                      : selectedColumn.options || [];
+                  if (hasOptions && builderGroupBySortOrder.length > 0) {
+                    // Get options in the custom sort order
+                    const optionsMap = new Map((selectedColumn.options || []).map(opt => [opt.value, opt]));
+                    const orderedOptions = builderGroupBySortOrder
+                      .map(value => optionsMap.get(value))
+                      .filter((opt): opt is NonNullable<typeof opt> => opt !== undefined);
                     
                     return (
                       <div style={styles({
@@ -1055,51 +1130,55 @@ export function ViewSelector({ tableId, onViewChange, availableColumns = [] }: V
                           color: colors.text.secondary,
                           marginBottom: spacing.sm,
                         })}>
-                          Group Order Preview
-                          {hasSortOrder && (
-                            <span style={styles({ 
-                              marginLeft: spacing.sm, 
-                              color: colors.success?.default || '#22c55e',
-                              fontWeight: 'normal',
-                            })}>
-                              (using sortOrder)
-                            </span>
-                          )}
+                          Group Order (drag to reorder)
                         </div>
                         <div style={styles({ display: 'flex', flexDirection: 'column', gap: spacing.xs })}>
-                          {sortedOptions.map((opt, idx) => (
-                            <div 
-                              key={opt.value}
-                              style={styles({
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: spacing.sm,
-                                padding: `${spacing.xs} ${spacing.sm}`,
-                                backgroundColor: colors.bg.elevated,
-                                borderRadius: radius.sm,
-                                fontSize: ts.bodySmall.fontSize,
-                              })}
-                            >
-                              <span style={styles({ 
-                                color: colors.text.muted,
-                                minWidth: '20px',
-                              })}>
-                                {idx + 1}.
-                              </span>
-                              <span style={styles({ color: colors.text.primary })}>
-                                {opt.label}
-                              </span>
-                              {hasSortOrder && opt.sortOrder !== undefined && (
+                          {orderedOptions.map((opt, idx) => {
+                            const isDragging = draggedIndex === idx;
+                            return (
+                              <div 
+                                key={opt.value}
+                                draggable
+                                onDragStart={() => handleDragStart(idx)}
+                                onDragOver={(e) => handleDragOver(e, idx)}
+                                onDragEnd={handleDragEnd}
+                                style={styles({
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: spacing.sm,
+                                  padding: `${spacing.xs} ${spacing.sm}`,
+                                  backgroundColor: isDragging ? colors.bg.elevated : colors.bg.elevated,
+                                  borderRadius: radius.sm,
+                                  fontSize: ts.bodySmall.fontSize,
+                                  cursor: 'grab',
+                                  opacity: isDragging ? 0.5 : 1,
+                                  border: isDragging ? `2px dashed ${colors.primary.default}` : `1px solid ${colors.border.subtle}`,
+                                  transition: 'all 150ms ease',
+                                })}
+                                onMouseDown={(e) => {
+                                  // Prevent text selection while dragging
+                                  e.preventDefault();
+                                }}
+                              >
+                                <GripVertical 
+                                  size={16} 
+                                  style={{ 
+                                    color: colors.text.muted,
+                                    flexShrink: 0,
+                                  }} 
+                                />
                                 <span style={styles({ 
-                                  marginLeft: 'auto',
                                   color: colors.text.muted,
-                                  fontSize: '11px',
+                                  minWidth: '20px',
                                 })}>
-                                  order: {opt.sortOrder}
+                                  {idx + 1}.
                                 </span>
-                              )}
-                            </div>
-                          ))}
+                                <span style={styles({ color: colors.text.primary, flex: 1 })}>
+                                  {opt.label}
+                                </span>
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     );
@@ -1296,6 +1375,9 @@ export function ViewSelector({ tableId, onViewChange, availableColumns = [] }: V
           </div>
         </Modal>
       )}
+
+      {/* Alert Dialog */}
+      <AlertDialog {...alertDialog.props} />
     </div>
   );
 }
