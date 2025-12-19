@@ -239,32 +239,46 @@ export function DataTable<TData extends Record<string, unknown>>({
       return { key, groupValue, groupData };
     });
 
-    // Sort groups according to sortOrder
-    if (groupBy.sortOrder) {
-      if (Array.isArray(groupBy.sortOrder)) {
-        // Array-based sort order
-        const orderMap = new Map(groupBy.sortOrder.map((val, idx) => [String(val), idx]));
-        groupEntries.sort((a, b) => {
-          const aOrder = orderMap.get(a.key) ?? Infinity;
-          const bOrder = orderMap.get(b.key) ?? Infinity;
-          if (aOrder !== Infinity || bOrder !== Infinity) {
-            return aOrder - bOrder;
-          }
-          // If not in sort order array, sort by key
-          return String(a.groupValue ?? '').localeCompare(String(b.groupValue ?? ''));
-        });
-      } else if (typeof groupBy.sortOrder === 'function') {
-        // Function-based sort order
-        const sortFn = groupBy.sortOrder;
-        groupEntries.sort((a, b) => {
-          const aOrder = sortFn(a.groupValue, a.groupData);
-          const bOrder = sortFn(b.groupValue, b.groupData);
-          return aOrder - bOrder;
-        });
-      }
-    } else {
-      // Default: sort by group value
+    // Sort groups.
+    // Canonical behavior:
+    // - If a function sortOrder is provided, it wins.
+    // - Otherwise, prefer a corresponding "*SortOrder" field in the row data (ex: statusId -> statusSortOrder).
+    // - Fallback: alphabetical by group value (nulls last).
+    if (typeof groupBy.sortOrder === 'function') {
+      const sortFn = groupBy.sortOrder;
       groupEntries.sort((a, b) => {
+        const aOrder = sortFn(a.groupValue, a.groupData);
+        const bOrder = sortFn(b.groupValue, b.groupData);
+        return aOrder - bOrder;
+      });
+    } else {
+      const field = groupBy.field;
+      const baseField = field.endsWith('Id') ? field.slice(0, -2) : field;
+      const candidateSortKeys = [`${field}SortOrder`, `${baseField}SortOrder`];
+
+      const groupSortValue = (groupData: TData[]): number | null => {
+        for (const sortKey of candidateSortKeys) {
+          let best: number | null = null;
+          for (const row of groupData) {
+            const v = (row as any)?.[sortKey];
+            const n = typeof v === 'number' ? v : Number(v);
+            if (Number.isFinite(n)) {
+              best = best === null ? n : Math.min(best, n);
+            }
+          }
+          if (best !== null) return best;
+        }
+        return null;
+      };
+
+      const anyHasSort = groupEntries.some((g) => groupSortValue(g.groupData) !== null);
+
+      groupEntries.sort((a, b) => {
+        if (anyHasSort) {
+          const aSort = groupSortValue(a.groupData) ?? Infinity;
+          const bSort = groupSortValue(b.groupData) ?? Infinity;
+          if (aSort !== bSort) return aSort - bSort;
+        }
         if (a.groupValue === null && b.groupValue === null) return 0;
         if (a.groupValue === null) return 1;
         if (b.groupValue === null) return -1;
@@ -562,9 +576,16 @@ export function DataTable<TData extends Record<string, unknown>>({
                     const isCollapsed = collapsedGroups.has(item.groupKey);
                     const groupLabel = groupBy.renderLabel 
                       ? groupBy.renderLabel(item.groupValue, item.groupData)
-                      : item.groupValue === null 
-                        ? 'No Stage' 
-                        : String(item.groupValue);
+                      : (() => {
+                          if (item.groupValue === null) return `No ${groupBy.field}`;
+                          const col: any = (columns as any[]).find((c) => c?.key === groupBy.field);
+                          const opts: any[] | undefined = col?.filterOptions;
+                          if (Array.isArray(opts)) {
+                            const hit = opts.find((o) => String(o?.value) === String(item.groupValue));
+                            if (hit?.label) return String(hit.label);
+                          }
+                          return String(item.groupValue);
+                        })();
                     
                     return (
                       <tr
