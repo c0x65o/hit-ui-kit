@@ -146,6 +146,10 @@ export interface DataTableProps<TData extends Record<string, unknown> = Record<s
   refreshing?: boolean;
   // Grouping
   groupBy?: GroupConfig<TData>;
+  // View system (optional - requires table-views feature pack)
+  tableId?: string;
+  enableViews?: boolean;
+  onViewFiltersChange?: (filters: Array<{ field: string; operator: string; value: any }>) => void;
 }
 
 export interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
