@@ -18,15 +18,31 @@ export declare const FILTER_OPERATORS: {
     readonly DATE_AFTER: "dateAfter";
     readonly IS_NULL: "isNull";
     readonly IS_NOT_NULL: "isNotNull";
+    readonly IS_TRUE: "isTrue";
+    readonly IS_FALSE: "isFalse";
 };
+/**
+ * Column definition for ViewSelector
+ * Supports various field types with options for select fields
+ */
+export interface ViewColumnDefinition {
+    key: string;
+    label: string;
+    /** Field type: 'string' | 'number' | 'date' | 'boolean' | 'select' | 'multiselect' */
+    type?: 'string' | 'number' | 'date' | 'boolean' | 'select' | 'multiselect';
+    /** Options for select/multiselect fields */
+    options?: Array<{
+        value: string;
+        label: string;
+    }>;
+    /** Whether this column can be hidden (default: true) */
+    hideable?: boolean;
+}
 interface ViewSelectorProps {
     tableId: string;
     onViewChange?: (view: TableView | null) => void;
-    availableColumns?: Array<{
-        key: string;
-        label: string;
-        type?: string;
-    }>;
+    /** Column definitions with type info and options for select fields */
+    availableColumns?: ViewColumnDefinition[];
 }
 /**
  * ViewSelector - Dropdown for selecting and managing table views

@@ -87,6 +87,13 @@ export interface DataTableColumn<TData = Record<string, unknown>> extends Omit<T
     sortable?: boolean;
     hideable?: boolean;
     render?: (value: any, row?: TData, index?: number) => React.ReactNode;
+    /** Field type for view builder (affects filter operators and value input) */
+    filterType?: 'string' | 'number' | 'date' | 'boolean' | 'select' | 'multiselect';
+    /** Options for select/multiselect fields in view builder */
+    filterOptions?: Array<{
+        value: string;
+        label: string;
+    }>;
 }
 export interface GroupConfig<TData = Record<string, unknown>> {
     /** Field key to group by */

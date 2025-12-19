@@ -64,6 +64,6 @@ export { defaultKit } from './kit';
 export { useAlertDialog } from './hooks/useAlertDialog';
 export type { AlertDialogOptions, AlertDialogState } from './hooks/useAlertDialog';
 export { useTableView, type TableView, type TableViewFilter } from './hooks/useTableView';
-export { Page, Card, Button, Input, TextArea, Select, Checkbox, Table, DataTable, Badge, Avatar, Alert, Modal, AlertDialog, Spinner, EmptyState, Tabs, Dropdown, Breadcrumb, Help, AuthLayout, AuthCard, FormInput, AclPicker, ViewSelector, FILTER_OPERATORS, cn, styles, } from './components';
+export { Page, Card, Button, Input, TextArea, Select, Checkbox, Table, DataTable, Badge, Avatar, Alert, Modal, AlertDialog, Spinner, EmptyState, Tabs, Dropdown, Breadcrumb, Help, AuthLayout, AuthCard, FormInput, AclPicker, ViewSelector, FILTER_OPERATORS, type ViewColumnDefinition, cn, styles, } from './components';
 export type { AuthLayoutProps, AuthCardProps, FormInputProps } from './components';
 //# sourceMappingURL=index.d.ts.map

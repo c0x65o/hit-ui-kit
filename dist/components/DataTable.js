@@ -261,9 +261,19 @@ tableId, enableViews = false, onViewFiltersChange, }) {
                             gap: spacing.md,
                             alignItems: 'center',
                             flexWrap: 'wrap',
-                        }), children: [enableViews && tableId && (_jsx(ViewSelector, { tableId: tableId, availableColumns: columns.map((col) => ({ key: col.key, label: col.label, type: 'string' })), onViewChange: (view) => {
+                        }), children: [enableViews && tableId && (_jsx(ViewSelector, { tableId: tableId, availableColumns: columns.map((col) => ({
+                                    key: col.key,
+                                    label: col.label,
+                                    type: col.filterType || 'string',
+                                    options: col.filterOptions,
+                                    hideable: col.hideable !== false,
+                                })), onViewChange: (view) => {
                                     if (onViewFiltersChange) {
                                         onViewFiltersChange(view?.filters || []);
+                                    }
+                                    // Apply column visibility from view
+                                    if (view?.columnVisibility) {
+                                        setColumnVisibility(view.columnVisibility);
                                     }
                                 } })), searchable && (_jsxs("div", { style: { flex: '1', minWidth: '200px', maxWidth: '400px', position: 'relative' }, children: [_jsx(Search, { size: 16, style: {
                                             position: 'absolute',
