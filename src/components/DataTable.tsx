@@ -346,10 +346,20 @@ export function DataTable<TData extends Record<string, unknown>>({
           {enableViews && tableId && (
             <ViewSelector 
               tableId={tableId} 
-              availableColumns={columns.map((col) => ({ key: col.key, label: col.label, type: 'string' }))}
+              availableColumns={columns.map((col) => ({ 
+                key: col.key, 
+                label: col.label, 
+                type: col.filterType || 'string',
+                options: col.filterOptions,
+                hideable: col.hideable !== false,
+              }))}
               onViewChange={(view: TableView | null) => {
                 if (onViewFiltersChange) {
                   onViewFiltersChange(view?.filters || []);
+                }
+                // Apply column visibility from view
+                if (view?.columnVisibility) {
+                  setColumnVisibility(view.columnVisibility);
                 }
               }}
             />

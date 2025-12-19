@@ -110,12 +110,15 @@ export * from './tokens';
 export { defaultKit } from './kit';
 // Hooks
 export { useAlertDialog } from './hooks/useAlertDialog';
+export { useTableView } from './hooks/useTableView';
 // Components (for direct imports)
 export { Page, Card, Button, Input, TextArea, Select, Checkbox, Table, DataTable, Badge, Avatar, Alert, Modal, AlertDialog, Spinner, EmptyState, Tabs, Dropdown, Breadcrumb, Help, 
 // Auth-specific
 AuthLayout, AuthCard, FormInput, 
 // ACL
 AclPicker, 
+// Views
+ViewSelector, FILTER_OPERATORS, 
 // Utils
 cn, styles, } from './components';
 //# sourceMappingURL=index.js.map

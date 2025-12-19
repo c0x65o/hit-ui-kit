@@ -120,6 +120,13 @@ export interface DataTableProps<TData extends Record<string, unknown> = Record<s
     onRefresh?: () => void;
     refreshing?: boolean;
     groupBy?: GroupConfig<TData>;
+    tableId?: string;
+    enableViews?: boolean;
+    onViewFiltersChange?: (filters: Array<{
+        field: string;
+        operator: string;
+        value: any;
+    }>) => void;
 }
 export interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
     variant?: 'default' | 'success' | 'warning' | 'error' | 'info';

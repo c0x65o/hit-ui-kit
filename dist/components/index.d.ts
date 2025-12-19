@@ -26,6 +26,7 @@ export { Tabs } from './Tabs';
 export { Dropdown } from './Dropdown';
 export { Breadcrumb } from './Breadcrumb';
 export { Help } from './Help';
+export { ViewSelector, FILTER_OPERATORS } from './ViewSelector';
 export { AclPicker } from './AclPicker';
 export { cn, styles } from './utils';
 //# sourceMappingURL=index.d.ts.map

@@ -1,0 +1,71 @@
+export interface TableViewFilter {
+    id?: string;
+    field: string;
+    operator: string;
+    value: string | number | boolean | null;
+    valueType?: string;
+    metadata?: Record<string, unknown>;
+    sortOrder?: number;
+}
+export interface TableView {
+    id: string;
+    userId: string;
+    tableId: string;
+    name: string;
+    description?: string | null;
+    isDefault: boolean;
+    isSystem: boolean;
+    isShared: boolean;
+    columnVisibility?: Record<string, boolean> | null;
+    sorting?: Array<{
+        id: string;
+        desc: boolean;
+    }> | null;
+    metadata?: Record<string, unknown> | null;
+    createdAt: string;
+    updatedAt: string;
+    lastUsedAt?: string | null;
+    filters: TableViewFilter[];
+}
+interface UseTableViewOptions {
+    tableId: string;
+    onViewChange?: (view: TableView | null) => void;
+}
+/**
+ * Hook for managing table views
+ *
+ * Requires the table-views feature pack to be installed for API endpoints.
+ * If the feature pack is not installed, API calls will gracefully fail.
+ *
+ * @example
+ * ```tsx
+ * const { views, currentView, selectView, createView } = useTableView({
+ *   tableId: 'projects',
+ *   onViewChange: (view) => console.log('View changed:', view),
+ * });
+ * ```
+ */
+export declare function useTableView({ tableId, onViewChange }: UseTableViewOptions): {
+    views: TableView[];
+    currentView: TableView | null;
+    loading: boolean;
+    error: Error | null;
+    available: boolean;
+    createView: (viewData: {
+        name: string;
+        description?: string;
+        filters?: TableViewFilter[];
+        columnVisibility?: Record<string, boolean>;
+        sorting?: Array<{
+            id: string;
+            desc: boolean;
+        }>;
+        isDefault?: boolean;
+    }) => Promise<any>;
+    updateView: (viewId: string, updates: Partial<TableView>) => Promise<any>;
+    deleteView: (viewId: string) => Promise<void>;
+    selectView: (view: TableView | null) => Promise<void>;
+    refresh: () => Promise<void>;
+};
+export {};
+//# sourceMappingURL=useTableView.d.ts.map

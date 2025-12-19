@@ -7,6 +7,7 @@ import { useThemeTokens } from '../theme/index.js';
 import { styles } from './utils';
 import { Button } from './Button';
 import { Dropdown } from './Dropdown';
+import { ViewSelector } from './ViewSelector';
 /**
  * DataTable Component
  *
@@ -37,7 +38,9 @@ total, page: externalPage, onPageChange, manualPagination = false,
 // Refresh
 onRefresh, refreshing = false, 
 // Grouping
-groupBy, }) {
+groupBy, 
+// View system
+tableId, enableViews = false, onViewFiltersChange, }) {
     const { colors, textStyles: ts, spacing } = useThemeTokens();
     const [sorting, setSorting] = useState(initialSorting?.map((s) => ({ id: s.id, desc: s.desc ?? false })) || []);
     const [columnFilters, setColumnFilters] = useState([]);
@@ -253,12 +256,16 @@ groupBy, }) {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
         }
-      ` }), _jsxs("div", { style: { display: 'flex', flexDirection: 'column', gap: spacing.lg }, children: [(searchable || exportable || showColumnVisibility || onRefresh) && (_jsxs("div", { style: styles({
+      ` }), _jsxs("div", { style: { display: 'flex', flexDirection: 'column', gap: spacing.lg }, children: [(searchable || exportable || showColumnVisibility || onRefresh || enableViews) && (_jsxs("div", { style: styles({
                             display: 'flex',
                             gap: spacing.md,
                             alignItems: 'center',
                             flexWrap: 'wrap',
-                        }), children: [searchable && (_jsxs("div", { style: { flex: '1', minWidth: '200px', maxWidth: '400px', position: 'relative' }, children: [_jsx(Search, { size: 16, style: {
+                        }), children: [enableViews && tableId && (_jsx(ViewSelector, { tableId: tableId, availableColumns: columns.map((col) => ({ key: col.key, label: col.label, type: 'string' })), onViewChange: (view) => {
+                                    if (onViewFiltersChange) {
+                                        onViewFiltersChange(view?.filters || []);
+                                    }
+                                } })), searchable && (_jsxs("div", { style: { flex: '1', minWidth: '200px', maxWidth: '400px', position: 'relative' }, children: [_jsx(Search, { size: 16, style: {
                                             position: 'absolute',
                                             left: spacing.md,
                                             top: '50%',

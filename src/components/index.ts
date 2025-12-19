@@ -40,7 +40,7 @@ export { Breadcrumb } from './Breadcrumb';
 export { Help } from './Help';
 
 // Views
-export { ViewSelector, FILTER_OPERATORS } from './ViewSelector';
+export { ViewSelector, FILTER_OPERATORS, type ViewColumnDefinition } from './ViewSelector';
 
 // ACL
 export { AclPicker } from './AclPicker';

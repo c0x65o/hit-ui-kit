@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { ChevronDown, Plus, Edit2, Trash2, Star, Filter, Trash } from 'lucide-react';
+import { ChevronDown, Plus, Edit2, Trash2, Star, Filter, Trash, Eye, EyeOff, Columns } from 'lucide-react';
 import { useTableView, type TableView, type TableViewFilter } from '../hooks/useTableView.js';
 import { useThemeTokens } from '../theme/index.js';
 import { Button } from './Button.js';
@@ -9,6 +9,7 @@ import { Modal } from './Modal.js';
 import { Input } from './Input.js';
 import { TextArea } from './TextArea.js';
 import { Select } from './Select.js';
+import { Checkbox } from './Checkbox.js';
 import { styles } from './utils.js';
 
 /**
@@ -30,12 +31,30 @@ export const FILTER_OPERATORS = {
   DATE_AFTER: 'dateAfter',
   IS_NULL: 'isNull',
   IS_NOT_NULL: 'isNotNull',
+  IS_TRUE: 'isTrue',
+  IS_FALSE: 'isFalse',
 } as const;
+
+/**
+ * Column definition for ViewSelector
+ * Supports various field types with options for select fields
+ */
+export interface ViewColumnDefinition {
+  key: string;
+  label: string;
+  /** Field type: 'string' | 'number' | 'date' | 'boolean' | 'select' | 'multiselect' */
+  type?: 'string' | 'number' | 'date' | 'boolean' | 'select' | 'multiselect';
+  /** Options for select/multiselect fields */
+  options?: Array<{ value: string; label: string }>;
+  /** Whether this column can be hidden (default: true) */
+  hideable?: boolean;
+}
 
 interface ViewSelectorProps {
   tableId: string;
   onViewChange?: (view: TableView | null) => void;
-  availableColumns?: Array<{ key: string; label: string; type?: string }>;
+  /** Column definitions with type info and options for select fields */
+  availableColumns?: ViewColumnDefinition[];
 }
 
 /**
@@ -68,20 +87,20 @@ export function ViewSelector({ tableId, onViewChange, availableColumns = [] }: V
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [showBuilder, setShowBuilder] = useState(false);
   const [editingView, setEditingView] = useState<TableView | null>(null);
+  const [activeTab, setActiveTab] = useState<'filters' | 'columns'>('filters');
   
   // Builder form state
   const [builderName, setBuilderName] = useState('');
   const [builderDescription, setBuilderDescription] = useState('');
   const [builderFilters, setBuilderFilters] = useState<TableViewFilter[]>([]);
+  const [builderColumnVisibility, setBuilderColumnVisibility] = useState<Record<string, boolean>>({});
   const [builderSaving, setBuilderSaving] = useState(false);
 
   const systemViews = views.filter((v) => v.isSystem);
   const customViews = views.filter((v) => !v.isSystem);
 
-  // If API not available (feature pack not installed), don't render
-  if (!available) {
-    return null;
-  }
+  // Get hideable columns (all columns are hideable by default unless specified)
+  const hideableColumns = availableColumns.filter((col) => col.hideable !== false);
 
   // Reset builder when opening
   useEffect(() => {
@@ -90,13 +109,22 @@ export function ViewSelector({ tableId, onViewChange, availableColumns = [] }: V
         setBuilderName(editingView.name);
         setBuilderDescription(editingView.description || '');
         setBuilderFilters(editingView.filters || []);
+        setBuilderColumnVisibility(editingView.columnVisibility || {});
       } else {
         setBuilderName('');
         setBuilderDescription('');
         setBuilderFilters([]);
+        // Default: all columns visible
+        setBuilderColumnVisibility({});
       }
+      setActiveTab('filters');
     }
   }, [showBuilder, editingView]);
+
+  // If API not available (feature pack not installed), don't render
+  if (!available) {
+    return null;
+  }
 
   const handleDelete = async (view: TableView, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -153,10 +181,14 @@ export function ViewSelector({ tableId, onViewChange, availableColumns = [] }: V
 
     setBuilderSaving(true);
     try {
+      // Only include columnVisibility if there are hidden columns
+      const hasHiddenColumns = Object.values(builderColumnVisibility).some((v) => v === false);
+      
       const viewData = {
         name: builderName.trim(),
         description: builderDescription.trim() || undefined,
         filters: builderFilters.filter((f) => f.field && f.operator),
+        columnVisibility: hasHiddenColumns ? builderColumnVisibility : undefined,
       };
 
       if (editingView) {
@@ -174,6 +206,19 @@ export function ViewSelector({ tableId, onViewChange, availableColumns = [] }: V
     }
   };
 
+  // Toggle column visibility
+  const toggleColumnVisibility = (columnKey: string) => {
+    setBuilderColumnVisibility((prev) => ({
+      ...prev,
+      [columnKey]: prev[columnKey] === false ? true : false,
+    }));
+  };
+
+  // Check if column is visible (default true if not specified)
+  const isColumnVisible = (columnKey: string) => {
+    return builderColumnVisibility[columnKey] !== false;
+  };
+
   // Get operator options based on field type
   const getOperatorOptions = (fieldType?: string) => {
     switch (fieldType) {
@@ -183,12 +228,29 @@ export function ViewSelector({ tableId, onViewChange, availableColumns = [] }: V
           { value: 'notEquals', label: 'Not Equals' },
           { value: 'greaterThan', label: 'Greater Than' },
           { value: 'lessThan', label: 'Less Than' },
+          { value: 'greaterThanOrEqual', label: 'Greater Than or Equal' },
+          { value: 'lessThanOrEqual', label: 'Less Than or Equal' },
         ];
       case 'date':
         return [
           { value: 'dateEquals', label: 'Equals' },
           { value: 'dateBefore', label: 'Before' },
           { value: 'dateAfter', label: 'After' },
+          { value: 'isNull', label: 'Is Empty' },
+          { value: 'isNotNull', label: 'Is Not Empty' },
+        ];
+      case 'boolean':
+        return [
+          { value: 'isTrue', label: 'Is True' },
+          { value: 'isFalse', label: 'Is False' },
+        ];
+      case 'select':
+      case 'multiselect':
+        return [
+          { value: 'equals', label: 'Equals' },
+          { value: 'notEquals', label: 'Not Equals' },
+          { value: 'isNull', label: 'Is Empty' },
+          { value: 'isNotNull', label: 'Is Not Empty' },
         ];
       default:
         return [
@@ -196,8 +258,101 @@ export function ViewSelector({ tableId, onViewChange, availableColumns = [] }: V
           { value: 'notEquals', label: 'Not Equals' },
           { value: 'contains', label: 'Contains' },
           { value: 'startsWith', label: 'Starts With' },
+          { value: 'endsWith', label: 'Ends With' },
+          { value: 'isNull', label: 'Is Empty' },
+          { value: 'isNotNull', label: 'Is Not Empty' },
         ];
     }
+  };
+
+  // Render the appropriate value input based on column type
+  const renderValueInput = (filter: TableViewFilter, index: number, column?: ViewColumnDefinition) => {
+    const fieldType = column?.type || 'string';
+    const operator = filter.operator;
+
+    // No value input needed for null checks or boolean operators
+    if (['isNull', 'isNotNull', 'isTrue', 'isFalse'].includes(operator)) {
+      return (
+        <div style={styles({ 
+          flex: 1, 
+          padding: spacing.sm, 
+          color: colors.text.muted,
+          fontSize: ts.bodySmall.fontSize,
+          fontStyle: 'italic',
+        })}>
+          No value needed
+        </div>
+      );
+    }
+
+    // Select/Multiselect with options
+    if ((fieldType === 'select' || fieldType === 'multiselect') && column?.options) {
+      return (
+        <div style={{ flex: 1 }}>
+          <Select
+            value={filter.value?.toString() || ''}
+            onChange={(value) => handleFilterChange(index, 'value', value)}
+            options={column.options}
+            placeholder="Select value..."
+          />
+        </div>
+      );
+    }
+
+    // Boolean field
+    if (fieldType === 'boolean') {
+      return (
+        <div style={{ flex: 1 }}>
+          <Select
+            value={filter.value?.toString() || ''}
+            onChange={(value) => handleFilterChange(index, 'value', value === 'true')}
+            options={[
+              { value: 'true', label: 'Yes / True' },
+              { value: 'false', label: 'No / False' },
+            ]}
+            placeholder="Select..."
+          />
+        </div>
+      );
+    }
+
+    // Date field
+    if (fieldType === 'date') {
+      return (
+        <div style={{ flex: 1 }}>
+          <Input
+            type="date"
+            value={filter.value?.toString() || ''}
+            onChange={(value) => handleFilterChange(index, 'value', value)}
+          />
+        </div>
+      );
+    }
+
+    // Number field
+    if (fieldType === 'number') {
+      return (
+        <div style={{ flex: 1 }}>
+          <Input
+            type="number"
+            value={filter.value?.toString() || ''}
+            onChange={(value) => handleFilterChange(index, 'value', value ? Number(value) : '')}
+            placeholder="Enter number..."
+          />
+        </div>
+      );
+    }
+
+    // Default: text input
+    return (
+      <div style={{ flex: 1 }}>
+        <Input
+          value={filter.value?.toString() || ''}
+          onChange={(value) => handleFilterChange(index, 'value', value)}
+          placeholder="Enter value..."
+        />
+      </div>
+    );
   };
 
   // Inline styles
@@ -430,88 +585,253 @@ export function ViewSelector({ tableId, onViewChange, availableColumns = [] }: V
               rows={2}
             />
 
-            {/* Filters */}
-            <div style={styles({ display: 'flex', flexDirection: 'column', gap: spacing.md })}>
-              <div style={styles({ display: 'flex', justifyContent: 'space-between', alignItems: 'center' })}>
-                <label style={styles({ fontSize: ts.body.fontSize, fontWeight: ts.label.fontWeight })}>Filters</label>
-                <Button variant="secondary" size="sm" onClick={handleAddFilter}>
-                  <Plus size={14} style={{ marginRight: spacing.xs }} />
-                  Add Filter
-                </Button>
-              </div>
+            {/* Tabs */}
+            <div style={styles({ display: 'flex', gap: spacing.xs, borderBottom: `1px solid ${colors.border.subtle}` })}>
+              <button
+                onClick={() => setActiveTab('filters')}
+                style={styles({
+                  padding: `${spacing.sm} ${spacing.md}`,
+                  fontSize: ts.body.fontSize,
+                  fontWeight: activeTab === 'filters' ? ts.label.fontWeight : 'normal',
+                  color: activeTab === 'filters' ? colors.primary.default : colors.text.muted,
+                  background: 'none',
+                  border: 'none',
+                  borderBottom: activeTab === 'filters' ? `2px solid ${colors.primary.default}` : '2px solid transparent',
+                  marginBottom: '-1px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: spacing.xs,
+                })}
+              >
+                <Filter size={14} />
+                Filters
+                {builderFilters.length > 0 && (
+                  <span style={styles({
+                    backgroundColor: colors.primary.default,
+                    color: '#fff',
+                    fontSize: '11px',
+                    padding: '2px 6px',
+                    borderRadius: radius.full,
+                    fontWeight: '600',
+                  })}>
+                    {builderFilters.length}
+                  </span>
+                )}
+              </button>
+              <button
+                onClick={() => setActiveTab('columns')}
+                style={styles({
+                  padding: `${spacing.sm} ${spacing.md}`,
+                  fontSize: ts.body.fontSize,
+                  fontWeight: activeTab === 'columns' ? ts.label.fontWeight : 'normal',
+                  color: activeTab === 'columns' ? colors.primary.default : colors.text.muted,
+                  background: 'none',
+                  border: 'none',
+                  borderBottom: activeTab === 'columns' ? `2px solid ${colors.primary.default}` : '2px solid transparent',
+                  marginBottom: '-1px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: spacing.xs,
+                })}
+              >
+                <Columns size={14} />
+                Columns
+                {Object.values(builderColumnVisibility).some((v) => v === false) && (
+                  <span style={styles({
+                    backgroundColor: colors.warning?.default || '#f59e0b',
+                    color: '#fff',
+                    fontSize: '11px',
+                    padding: '2px 6px',
+                    borderRadius: radius.full,
+                    fontWeight: '600',
+                  })}>
+                    {Object.values(builderColumnVisibility).filter((v) => v === false).length} hidden
+                  </span>
+                )}
+              </button>
+            </div>
 
-              {builderFilters.length === 0 ? (
-                <div
-                  style={styles({
-                    padding: spacing.xl,
-                    textAlign: 'center',
-                    color: colors.text.muted,
-                    fontSize: ts.body.fontSize,
-                    border: `1px dashed ${colors.border.subtle}`,
-                    borderRadius: radius.md,
-                  })}
-                >
-                  No filters. Add filters to narrow down your view.
+            {/* Filters Tab */}
+            {activeTab === 'filters' && (
+              <div style={styles({ display: 'flex', flexDirection: 'column', gap: spacing.md })}>
+                <div style={styles({ display: 'flex', justifyContent: 'flex-end' })}>
+                  <Button variant="secondary" size="sm" onClick={handleAddFilter}>
+                    <Plus size={14} style={{ marginRight: spacing.xs }} />
+                    Add Filter
+                  </Button>
                 </div>
-              ) : (
-                <div style={styles({ display: 'flex', flexDirection: 'column', gap: spacing.sm })}>
-                  {builderFilters.map((filter, index) => {
-                    const col = availableColumns.find((c) => c.key === filter.field);
-                    return (
-                      <div
-                        key={index}
-                        style={styles({
-                          display: 'flex',
-                          gap: spacing.sm,
-                          alignItems: 'center',
-                          padding: spacing.md,
-                          backgroundColor: colors.bg.elevated,
-                          borderRadius: radius.md,
-                          border: `1px solid ${colors.border.subtle}`,
-                        })}
-                      >
-                        <Select
-                          value={filter.field}
-                          onChange={(value) => handleFilterChange(index, 'field', value)}
-                          options={availableColumns.length > 0 
-                            ? availableColumns.map((c) => ({ value: c.key, label: c.label }))
-                            : [{ value: 'status', label: 'Status' }]
-                          }
-                          placeholder="Field"
-                        />
-                        <Select
-                          value={filter.operator}
-                          onChange={(value) => handleFilterChange(index, 'operator', value)}
-                          options={getOperatorOptions(col?.type)}
-                          placeholder="Operator"
-                        />
-                        <div style={{ flex: 1 }}>
-                          <Input
-                            value={filter.value?.toString() || ''}
-                            onChange={(value) => handleFilterChange(index, 'value', value)}
-                            placeholder="Value"
-                          />
-                        </div>
-                        <button
-                          onClick={() => handleRemoveFilter(index)}
+
+                {builderFilters.length === 0 ? (
+                  <div
+                    style={styles({
+                      padding: spacing.xl,
+                      textAlign: 'center',
+                      color: colors.text.muted,
+                      fontSize: ts.body.fontSize,
+                      border: `1px dashed ${colors.border.subtle}`,
+                      borderRadius: radius.md,
+                    })}
+                  >
+                    No filters. Add filters to narrow down your view.
+                  </div>
+                ) : (
+                  <div style={styles({ display: 'flex', flexDirection: 'column', gap: spacing.sm })}>
+                    {builderFilters.map((filter, index) => {
+                      const col = availableColumns.find((c) => c.key === filter.field);
+                      return (
+                        <div
+                          key={index}
                           style={styles({
-                            padding: spacing.sm,
-                            background: 'none',
-                            border: 'none',
-                            cursor: 'pointer',
-                            color: colors.error?.default || '#ef4444',
                             display: 'flex',
+                            gap: spacing.sm,
                             alignItems: 'center',
+                            padding: spacing.md,
+                            backgroundColor: colors.bg.elevated,
+                            borderRadius: radius.md,
+                            border: `1px solid ${colors.border.subtle}`,
                           })}
                         >
-                          <Trash size={16} />
+                          <Select
+                            value={filter.field}
+                            onChange={(value) => {
+                              // Reset operator and value when field changes
+                              const newCol = availableColumns.find((c) => c.key === value);
+                              const defaultOp = getOperatorOptions(newCol?.type)[0]?.value || 'equals';
+                              handleFilterChange(index, 'field', value);
+                              handleFilterChange(index, 'operator', defaultOp);
+                              handleFilterChange(index, 'value', '');
+                            }}
+                            options={availableColumns.length > 0 
+                              ? availableColumns.map((c) => ({ value: c.key, label: c.label }))
+                              : [{ value: 'status', label: 'Status' }]
+                            }
+                            placeholder="Field"
+                          />
+                          <Select
+                            value={filter.operator}
+                            onChange={(value) => handleFilterChange(index, 'operator', value)}
+                            options={getOperatorOptions(col?.type)}
+                            placeholder="Operator"
+                          />
+                          {renderValueInput(filter, index, col)}
+                          <button
+                            onClick={() => handleRemoveFilter(index)}
+                            style={styles({
+                              padding: spacing.sm,
+                              background: 'none',
+                              border: 'none',
+                              cursor: 'pointer',
+                              color: colors.error?.default || '#ef4444',
+                              display: 'flex',
+                              alignItems: 'center',
+                            })}
+                          >
+                            <Trash size={16} />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Columns Tab */}
+            {activeTab === 'columns' && (
+              <div style={styles({ display: 'flex', flexDirection: 'column', gap: spacing.md })}>
+                <p style={styles({ fontSize: ts.bodySmall.fontSize, color: colors.text.muted, margin: 0 })}>
+                  Select which columns to show in this view. Hidden columns will not appear in the table.
+                </p>
+
+                {hideableColumns.length === 0 ? (
+                  <div
+                    style={styles({
+                      padding: spacing.xl,
+                      textAlign: 'center',
+                      color: colors.text.muted,
+                      fontSize: ts.body.fontSize,
+                      border: `1px dashed ${colors.border.subtle}`,
+                      borderRadius: radius.md,
+                    })}
+                  >
+                    No columns available to configure.
+                  </div>
+                ) : (
+                  <div style={styles({ 
+                    display: 'grid', 
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+                    gap: spacing.sm,
+                  })}>
+                    {hideableColumns.map((col) => {
+                      const visible = isColumnVisible(col.key);
+                      return (
+                        <button
+                          key={col.key}
+                          onClick={() => toggleColumnVisibility(col.key)}
+                          style={styles({
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: spacing.sm,
+                            padding: spacing.md,
+                            backgroundColor: visible ? colors.bg.surface : colors.bg.elevated,
+                            border: `1px solid ${visible ? colors.border.subtle : colors.border.default}`,
+                            borderRadius: radius.md,
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                            transition: 'all 150ms ease',
+                            opacity: visible ? 1 : 0.6,
+                          })}
+                        >
+                          {visible ? (
+                            <Eye size={16} style={{ color: colors.success?.default || '#22c55e' }} />
+                          ) : (
+                            <EyeOff size={16} style={{ color: colors.text.muted }} />
+                          )}
+                          <span style={styles({
+                            flex: 1,
+                            fontSize: ts.body.fontSize,
+                            color: visible ? colors.text.primary : colors.text.muted,
+                            textDecoration: visible ? 'none' : 'line-through',
+                          })}>
+                            {col.label}
+                          </span>
                         </button>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Quick actions */}
+                <div style={styles({ display: 'flex', gap: spacing.sm, justifyContent: 'flex-end' })}>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => {
+                      // Show all columns
+                      setBuilderColumnVisibility({});
+                    }}
+                  >
+                    Show All
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => {
+                      // Hide all columns (except first one)
+                      const hidden: Record<string, boolean> = {};
+                      hideableColumns.forEach((col, i) => {
+                        if (i > 0) hidden[col.key] = false;
+                      });
+                      setBuilderColumnVisibility(hidden);
+                    }}
+                  >
+                    Hide All
+                  </Button>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
 
             {/* Actions */}
             <div

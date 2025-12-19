@@ -111,7 +111,7 @@ export function useTableView({ tableId, onViewChange }: UseTableViewOptions) {
     fetchViews();
   }, [fetchViews]);
 
-  const createView = async (viewData: {
+  const createView = useCallback(async (viewData: {
     name: string;
     description?: string;
     filters?: TableViewFilter[];
@@ -135,9 +135,9 @@ export function useTableView({ tableId, onViewChange }: UseTableViewOptions) {
     const newView = json.data;
     setViews((prev) => [...prev, newView]);
     return newView;
-  };
+  }, [tableId]);
 
-  const updateView = async (viewId: string, updates: Partial<TableView>) => {
+  const updateView = useCallback(async (viewId: string, updates: Partial<TableView>) => {
     const res = await fetch(`/api/table-views/${viewId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -150,14 +150,17 @@ export function useTableView({ tableId, onViewChange }: UseTableViewOptions) {
     const json = await res.json();
     const updatedView = json.data;
     setViews((prev) => prev.map((v) => (v.id === viewId ? updatedView : v)));
-    if (currentView?.id === viewId) {
-      setCurrentView(updatedView);
-      onViewChange?.(updatedView);
-    }
+    setCurrentView((current) => {
+      if (current?.id === viewId) {
+        onViewChangeRef.current?.(updatedView);
+        return updatedView;
+      }
+      return current;
+    });
     return updatedView;
-  };
+  }, []);
 
-  const deleteView = async (viewId: string) => {
+  const deleteView = useCallback(async (viewId: string) => {
     const res = await fetch(`/api/table-views/${viewId}`, {
       method: 'DELETE',
     });
@@ -165,18 +168,23 @@ export function useTableView({ tableId, onViewChange }: UseTableViewOptions) {
       const json = await res.json().catch(() => ({}));
       throw new Error(json?.error || 'Failed to delete view');
     }
-    setViews((prev) => prev.filter((v) => v.id !== viewId));
-    if (currentView?.id === viewId) {
-      const remainingViews = views.filter((v) => v.id !== viewId);
-      const newCurrentView = remainingViews.find((v) => v.isDefault) || remainingViews[0] || null;
-      setCurrentView(newCurrentView);
-      onViewChange?.(newCurrentView);
-    }
-  };
+    setViews((prev) => {
+      const remaining = prev.filter((v) => v.id !== viewId);
+      setCurrentView((current) => {
+        if (current?.id === viewId) {
+          const newCurrentView = remaining.find((v) => v.isDefault) || remaining[0] || null;
+          onViewChangeRef.current?.(newCurrentView);
+          return newCurrentView;
+        }
+        return current;
+      });
+      return remaining;
+    });
+  }, []);
 
-  const selectView = async (view: TableView | null) => {
+  const selectView = useCallback(async (view: TableView | null) => {
     setCurrentView(view);
-    onViewChange?.(view);
+    onViewChangeRef.current?.(view);
 
     // Update lastUsedAt if view is selected
     if (view && !view.isSystem) {
@@ -188,7 +196,7 @@ export function useTableView({ tableId, onViewChange }: UseTableViewOptions) {
         // Ignore errors for usage tracking
       }
     }
-  };
+  }, []);
 
   return {
     views,

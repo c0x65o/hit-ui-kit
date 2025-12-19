@@ -218,6 +218,7 @@ export {
   // Views
   ViewSelector,
   FILTER_OPERATORS,
+  type ViewColumnDefinition,
   // Utils
   cn,
   styles,
