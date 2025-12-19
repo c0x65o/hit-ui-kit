@@ -1,29 +1,94 @@
 'use client';
 import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
+import { useState, useRef, useEffect } from 'react';
+import { ChevronDown } from 'lucide-react';
 import { useThemeTokens } from '../theme/index.js';
 import { styles } from './utils';
-export function Select({ label, options, value, onChange, placeholder, error, disabled, required, }) {
-    const { colors, radius, componentSpacing, textStyles: ts, spacing } = useThemeTokens();
-    return (_jsxs("div", { style: styles({ marginBottom: spacing.md }), children: [label && (_jsxs("label", { style: styles({
+export function Select({ label, options, value, onChange, placeholder, error, disabled, required, style, }) {
+    const { colors, radius, componentSpacing, textStyles: ts, spacing, shadows } = useThemeTokens();
+    const [open, setOpen] = useState(false);
+    const [hovered, setHovered] = useState(false);
+    const containerRef = useRef(null);
+    // Close dropdown when clicking outside
+    useEffect(() => {
+        function handleClickOutside(event) {
+            if (containerRef.current && !containerRef.current.contains(event.target)) {
+                setOpen(false);
+            }
+        }
+        if (open) {
+            document.addEventListener('mousedown', handleClickOutside);
+            return () => document.removeEventListener('mousedown', handleClickOutside);
+        }
+    }, [open]);
+    const selectedOption = options.find((opt) => opt.value === value);
+    const displayValue = selectedOption ? selectedOption.label : (placeholder || '');
+    return (_jsxs("div", { ref: containerRef, style: styles({ marginBottom: spacing.md, position: 'relative', ...style }), children: [label && (_jsxs("label", { style: styles({
                     display: 'block',
                     fontSize: ts.label.fontSize,
                     fontWeight: ts.label.fontWeight,
                     color: colors.text.primary,
                     marginBottom: spacing.xs,
-                }), children: [label, required && _jsx("span", { style: { color: colors.error.default, marginLeft: spacing.xs }, children: "*" })] })), _jsxs("select", { value: value, onChange: (e) => onChange(e.target.value), disabled: disabled, style: styles({
+                }), children: [label, required && _jsx("span", { style: { color: colors.error.default, marginLeft: spacing.xs }, children: "*" })] })), _jsxs("button", { type: "button", onClick: () => !disabled && setOpen(!open), onMouseEnter: () => !disabled && setHovered(true), onMouseLeave: () => setHovered(false), disabled: disabled, style: styles({
                     width: '100%',
                     height: componentSpacing.input.height,
                     padding: `0 ${componentSpacing.input.paddingX}`,
+                    paddingRight: spacing.md,
                     backgroundColor: colors.bg.elevated,
-                    border: `1px solid ${error ? colors.error.default : colors.border.default}`,
+                    border: `1px solid ${error ? colors.error.default : (hovered && !disabled ? colors.primary.default : colors.border.default)}`,
                     borderRadius: radius.md,
-                    color: colors.text.primary,
+                    color: value ? colors.text.primary : colors.text.muted,
                     fontSize: ts.body.fontSize,
                     outline: 'none',
                     opacity: disabled ? 0.5 : 1,
                     cursor: disabled ? 'not-allowed' : 'pointer',
                     boxSizing: 'border-box',
-                }), children: [placeholder && (_jsx("option", { value: "", disabled: true, children: placeholder })), options.map((opt) => (_jsx("option", { value: opt.value, disabled: opt.disabled, children: opt.label }, opt.value)))] }), error && (_jsx("p", { style: styles({
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    textAlign: 'left',
+                    transition: 'border-color 150ms ease',
+                }), children: [_jsx("span", { children: displayValue }), _jsx(ChevronDown, { size: 16, style: {
+                            color: colors.text.muted,
+                            transform: open ? 'rotate(180deg)' : 'rotate(0deg)',
+                            transition: 'transform 150ms ease',
+                        } })] }), open && !disabled && (_jsx("div", { style: styles({
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    right: 0,
+                    zIndex: 1000,
+                    marginTop: spacing.xs,
+                    backgroundColor: colors.bg.surface,
+                    border: `1px solid ${colors.border.subtle}`,
+                    borderRadius: radius.md,
+                    boxShadow: shadows.xl,
+                    maxHeight: '200px',
+                    overflowY: 'auto',
+                }), children: options.map((opt) => (_jsx("button", { type: "button", onClick: () => {
+                        onChange(opt.value);
+                        setOpen(false);
+                    }, disabled: opt.disabled, onMouseEnter: (e) => {
+                        if (!opt.disabled) {
+                            e.currentTarget.style.backgroundColor = colors.bg.elevated;
+                        }
+                    }, onMouseLeave: (e) => {
+                        if (opt.value !== value) {
+                            e.currentTarget.style.backgroundColor = 'transparent';
+                        }
+                    }, style: styles({
+                        width: '100%',
+                        padding: `${spacing.sm} ${componentSpacing.input.paddingX}`,
+                        fontSize: ts.body.fontSize,
+                        textAlign: 'left',
+                        color: opt.disabled ? colors.text.muted : (opt.value === value ? colors.primary.default : colors.text.primary),
+                        backgroundColor: opt.value === value ? colors.bg.elevated : 'transparent',
+                        background: 'none',
+                        border: 'none',
+                        cursor: opt.disabled ? 'not-allowed' : 'pointer',
+                        opacity: opt.disabled ? 0.5 : 1,
+                        transition: 'background-color 150ms ease',
+                    }), children: opt.label }, opt.value))) })), error && (_jsx("p", { style: styles({
                     marginTop: spacing.xs,
                     fontSize: ts.bodySmall.fontSize,
                     color: colors.error.default,

@@ -40,7 +40,9 @@ onRefresh, refreshing = false,
 // Grouping
 groupBy, 
 // View system
-tableId, enableViews = false, onViewFiltersChange, }) {
+tableId, enableViews, onViewFiltersChange, }) {
+    // Auto-enable views if tableId is provided (unless explicitly disabled)
+    const viewsEnabled = enableViews !== undefined ? enableViews : !!tableId;
     const { colors, textStyles: ts, spacing } = useThemeTokens();
     const [sorting, setSorting] = useState(initialSorting?.map((s) => ({ id: s.id, desc: s.desc ?? false })) || []);
     const [columnFilters, setColumnFilters] = useState([]);
@@ -256,12 +258,12 @@ tableId, enableViews = false, onViewFiltersChange, }) {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
         }
-      ` }), _jsxs("div", { style: { display: 'flex', flexDirection: 'column', gap: spacing.lg }, children: [(searchable || exportable || showColumnVisibility || onRefresh || enableViews) && (_jsxs("div", { style: styles({
+      ` }), _jsxs("div", { style: { display: 'flex', flexDirection: 'column', gap: spacing.lg }, children: [(searchable || exportable || showColumnVisibility || onRefresh || viewsEnabled) && (_jsxs("div", { style: styles({
                             display: 'flex',
                             gap: spacing.md,
                             alignItems: 'center',
                             flexWrap: 'wrap',
-                        }), children: [enableViews && tableId && (_jsx(ViewSelector, { tableId: tableId, availableColumns: columns.map((col) => ({
+                        }), children: [viewsEnabled && tableId && (_jsx(ViewSelector, { tableId: tableId, availableColumns: columns.map((col) => ({
                                     key: col.key,
                                     label: col.label,
                                     type: col.filterType || 'string',

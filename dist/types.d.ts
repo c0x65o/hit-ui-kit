@@ -62,6 +62,7 @@ export interface SelectProps {
     error?: string;
     disabled?: boolean;
     required?: boolean;
+    style?: React.CSSProperties;
 }
 export interface CheckboxProps {
     label?: string;

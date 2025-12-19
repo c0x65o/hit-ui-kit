@@ -78,6 +78,7 @@ export interface SelectProps {
   error?: string;
   disabled?: boolean;
   required?: boolean;
+  style?: React.CSSProperties;
 }
 
 export interface CheckboxProps {
@@ -150,9 +151,10 @@ export interface DataTableProps<TData extends Record<string, unknown> = Record<s
   refreshing?: boolean;
   // Grouping
   groupBy?: GroupConfig<TData>;
-  // View system (optional - requires table-views feature pack)
+  // View system (optional - requires dashboard-shell feature pack)
+  // Views are automatically enabled when tableId is provided. Set enableViews={false} to disable.
   tableId?: string;
-  enableViews?: boolean;
+  enableViews?: boolean; // Defaults to true if tableId is provided, false otherwise
   onViewFiltersChange?: (filters: Array<{ field: string; operator: string; value: any }>) => void;
 }
 

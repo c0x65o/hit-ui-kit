@@ -85,9 +85,11 @@ export function DataTable<TData extends Record<string, unknown>>({
   groupBy,
   // View system
   tableId,
-  enableViews = false,
+  enableViews,
   onViewFiltersChange,
 }: DataTableProps<TData>) {
+  // Auto-enable views if tableId is provided (unless explicitly disabled)
+  const viewsEnabled = enableViews !== undefined ? enableViews : !!tableId;
   const { colors, textStyles: ts, spacing } = useThemeTokens();
   
   const [sorting, setSorting] = useState<SortingState>(
@@ -336,14 +338,14 @@ export function DataTable<TData extends Record<string, unknown>>({
       `}</style>
       <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.lg }}>
         {/* Toolbar */}
-      {(searchable || exportable || showColumnVisibility || onRefresh || enableViews) && (
+      {(searchable || exportable || showColumnVisibility || onRefresh || viewsEnabled) && (
         <div style={styles({
           display: 'flex',
           gap: spacing.md,
           alignItems: 'center',
           flexWrap: 'wrap',
         })}>
-          {enableViews && tableId && (
+          {viewsEnabled && tableId && (
             <ViewSelector 
               tableId={tableId} 
               availableColumns={columns.map((col) => ({ 
