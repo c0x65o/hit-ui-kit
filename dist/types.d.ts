@@ -146,6 +146,8 @@ export interface DataTableProps<TData extends Record<string, unknown> = Record<s
         field: string;
         sortOrder?: string[];
     } | null) => void;
+    /** Receive the full selected view object (includes metadata) when the user changes views */
+    onViewChange?: (view: any | null) => void;
 }
 export interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
     variant?: 'default' | 'success' | 'warning' | 'error' | 'info';

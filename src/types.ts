@@ -168,6 +168,8 @@ export interface DataTableProps<TData extends Record<string, unknown> = Record<s
   enableViews?: boolean; // Defaults to true if tableId is provided, false otherwise
   onViewFiltersChange?: (filters: Array<{ field: string; operator: string; value: any }>) => void;
   onViewGroupByChange?: (groupBy: { field: string; sortOrder?: string[] } | null) => void;
+  /** Receive the full selected view object (includes metadata) when the user changes views */
+  onViewChange?: (view: any | null) => void;
 }
 
 export interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {

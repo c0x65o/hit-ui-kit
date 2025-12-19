@@ -165,6 +165,7 @@ export function useTableView({ tableId, onViewChange }: UseTableViewOptions) {
     columnVisibility?: Record<string, boolean>;
     sorting?: Array<{ id: string; desc: boolean }>;
     groupBy?: TableViewGroupBy;
+    metadata?: Record<string, unknown> | null;
     isDefault?: boolean;
     isSystem?: boolean; // If true, creates a system view visible to all users
   }) => {

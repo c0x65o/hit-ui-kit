@@ -78,6 +78,7 @@ export declare function useTableView({ tableId, onViewChange }: UseTableViewOpti
             desc: boolean;
         }>;
         groupBy?: TableViewGroupBy;
+        metadata?: Record<string, unknown> | null;
         isDefault?: boolean;
         isSystem?: boolean;
     }) => Promise<any>;

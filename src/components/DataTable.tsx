@@ -90,6 +90,7 @@ export function DataTable<TData extends Record<string, unknown>>({
   enableViews,
   onViewFiltersChange,
   onViewGroupByChange,
+  onViewChange,
 }: DataTableProps<TData>) {
   // Auto-enable views if tableId is provided (unless explicitly disabled)
   const viewsEnabled = enableViews !== undefined ? enableViews : !!tableId;
@@ -409,6 +410,9 @@ export function DataTable<TData extends Record<string, unknown>>({
                 hideable: col.hideable !== false,
               }))}
               onViewChange={(view: TableView | null) => {
+                if (onViewChange) {
+                  onViewChange(view as any);
+                }
                 if (onViewFiltersChange) {
                   onViewFiltersChange(view?.filters || []);
                 }
