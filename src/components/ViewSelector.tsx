@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { ChevronDown, Plus, Edit2, Trash2, Star, Filter, Trash, Eye, EyeOff, Columns, Layers, Share2, Users, X, ArrowUpDown } from 'lucide-react';
 import { useTableView, type TableView, type TableViewFilter, type TableViewShare } from '../hooks/useTableView';
-import { useThemeTokens } from '../theme/index.js';
+import { useThemeTokens } from '../theme/index';
 import { useAlertDialog } from '../hooks/useAlertDialog.js';
 import { Button } from './Button.js';
 import { Modal } from './Modal.js';
@@ -12,6 +12,8 @@ import { Input } from './Input.js';
 import { Select } from './Select.js';
 import { Checkbox } from './Checkbox.js';
 import { styles } from './utils.js';
+// @ts-ignore - Optional peer dependency for user dropdown in sharing
+import { usePrincipals } from '@hit/feature-pack-auth-core';
 
 /**
  * Filter operators for table views
@@ -112,10 +114,37 @@ export function ViewSelector({ tableId, onViewChange, onReady, availableColumns 
   // Share state
   const [shares, setShares] = useState<TableViewShare[]>([]);
   const [sharesLoading, setSharesLoading] = useState(false);
-  const [shareEmail, setShareEmail] = useState('');
+  const [selectedShareUserId, setSelectedShareUserId] = useState('');
   const [shareError, setShareError] = useState<string | null>(null);
   // When creating a new view (no id yet), queue up share recipients and apply after creation
-  const [pendingShareEmails, setPendingShareEmails] = useState<string[]>([]);
+  const [pendingShareUserIds, setPendingShareUserIds] = useState<string[]>([]);
+  
+  // Fetch users for sharing dropdown
+  const { principals: availableUsers, loading: usersLoading } = usePrincipals({
+    users: true,
+    groups: false,
+    roles: false,
+  });
+  
+  // Get user options for select dropdown, excluding already shared users
+  const userOptions = useMemo(() => {
+    const alreadySharedIds = new Set([
+      ...shares.map(s => s.principalId),
+      ...pendingShareUserIds,
+    ]);
+    return availableUsers
+      .filter((u: any) => u.type === 'user' && !alreadySharedIds.has(u.id))
+      .map((u: any) => ({
+        value: u.id,
+        label: u.displayName || u.id,
+      }));
+  }, [availableUsers, shares, pendingShareUserIds]);
+  
+  // Get display name for a user ID
+  const getUserDisplayName = (userId: string): string => {
+    const user = availableUsers.find((u: any) => u.id === userId);
+    return user?.displayName || userId;
+  };
 
   // Categorize views
   const systemViews = views.filter((v) => v._category === 'system' || v.isSystem);
@@ -151,10 +180,10 @@ export function ViewSelector({ tableId, onViewChange, onReady, availableColumns 
         setBuilderGroupByField('');
         setBuilderSorting([]);
         setShares([]);
-        setPendingShareEmails([]);
+        setPendingShareUserIds([]);
       }
       setActiveTab('filters');
-      setShareEmail('');
+      setSelectedShareUserId('');
       setShareError(null);
     }
   }, [showBuilder, editingView, getShares]);
@@ -280,13 +309,13 @@ export function ViewSelector({ tableId, onViewChange, onReady, availableColumns 
       } else {
         const newView = await createView(viewData);
         // Apply any queued shares now that we have a view id
-        if (pendingShareEmails.length > 0) {
+        if (pendingShareUserIds.length > 0) {
           const failures: string[] = [];
-          for (const email of pendingShareEmails) {
+          for (const userId of pendingShareUserIds) {
             try {
-              await addShare(newView.id, 'user', email);
+              await addShare(newView.id, 'user', userId);
             } catch (err: any) {
-              failures.push(`${email}${err?.message ? ` (${err.message})` : ''}`);
+              failures.push(`${getUserDisplayName(userId)}${err?.message ? ` (${err.message})` : ''}`);
             }
           }
           if (failures.length > 0) {
@@ -735,7 +764,7 @@ export function ViewSelector({ tableId, onViewChange, onReady, availableColumns 
           title={editingView ? 'Edit View' : 'Create New View'}
           size="2xl"
         >
-          <div style={styles({ display: 'flex', flexDirection: 'column', gap: spacing.lg, padding: spacing.lg })}>
+          <div style={styles({ display: 'flex', flexDirection: 'column', gap: spacing.lg, padding: spacing.lg, overflow: 'visible' })}>
             {/* Name */}
             <Input
               label="View Name"
@@ -896,7 +925,7 @@ export function ViewSelector({ tableId, onViewChange, onReady, availableColumns 
                 >
                   <Share2 size={14} />
                   Sharing
-                  {((editingView ? shares.length : pendingShareEmails.length) > 0) && (
+                  {((editingView ? shares.length : pendingShareUserIds.length) > 0) && (
                     <span style={styles({
                       backgroundColor: colors.success?.default || '#22c55e',
                       color: '#fff',
@@ -905,7 +934,7 @@ export function ViewSelector({ tableId, onViewChange, onReady, availableColumns 
                       borderRadius: radius.full,
                       fontWeight: '600',
                     })}>
-                      {editingView ? shares.length : pendingShareEmails.length}
+                      {editingView ? shares.length : pendingShareUserIds.length}
                     </span>
                   )}
                 </button>
@@ -962,6 +991,8 @@ export function ViewSelector({ tableId, onViewChange, onReady, availableColumns 
                             backgroundColor: colors.bg.elevated,
                             borderRadius: radius.md,
                             border: `1px solid ${colors.border.subtle}`,
+                            position: 'relative',
+                            zIndex: 100,
                           })}
                         >
                           <Select
@@ -1173,7 +1204,7 @@ export function ViewSelector({ tableId, onViewChange, onReady, availableColumns 
                     No sorting rules. The table default sorting will be used.
                   </div>
                 ) : (
-                  <div style={styles({ display: 'flex', flexDirection: 'column', gap: spacing.sm, overflowY: 'auto', maxHeight: '38vh' })}>
+                  <div style={styles({ display: 'flex', flexDirection: 'column', gap: spacing.sm, overflow: 'visible' })}>
                     {builderSorting.map((sort, index) => (
                       <div
                         key={`${sort.id}-${index}`}
@@ -1185,6 +1216,8 @@ export function ViewSelector({ tableId, onViewChange, onReady, availableColumns 
                           backgroundColor: colors.bg.elevated,
                           borderRadius: radius.md,
                           border: `1px solid ${colors.border.subtle}`,
+                          position: 'relative',
+                          zIndex: 100,
                         })}
                       >
                         <Select
@@ -1232,51 +1265,51 @@ export function ViewSelector({ tableId, onViewChange, onReady, availableColumns 
                 </p>
 
                 {/* Add share form */}
-                <div style={styles({
-                  display: 'flex',
-                  gap: spacing.sm,
-                  alignItems: 'flex-end',
-                })}>
+                <div style={styles({ display: 'flex', gap: spacing.md, alignItems: 'flex-end', position: 'relative', zIndex: 100 })}>
                   <div style={{ flex: 1 }}>
-                    <Input
-                      label="Share with user (email)"
-                      value={shareEmail}
+                    <Select
+                      label="User"
+                      value={selectedShareUserId}
                       onChange={(val) => {
-                        setShareEmail(val);
+                        setSelectedShareUserId(val);
                         setShareError(null);
                       }}
-                      placeholder="user@example.com"
+                      options={userOptions}
+                      placeholder={usersLoading ? 'Loading users...' : 'Select user'}
+                      disabled={usersLoading}
+                      style={{ marginBottom: 0 }}
                     />
                   </div>
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    disabled={!shareEmail.trim()}
-                    onClick={async () => {
-                      const email = shareEmail.trim();
-                      if (!email) return;
-                      try {
-                        setShareError(null);
-                        if (editingView) {
-                          const newShare = await addShare(editingView.id, 'user', email);
-                          setShares((prev) => [...prev, newShare]);
-                        } else {
-                          // Queue share until after view is created
-                          setPendingShareEmails((prev) => {
-                            const next = new Set(prev);
-                            next.add(email);
-                            return Array.from(next);
-                          });
+                  <div style={styles({ paddingBottom: spacing.md })}>
+                    <Button
+                      variant="primary"
+                      disabled={!selectedShareUserId || usersLoading}
+                      onClick={async () => {
+                        const userId = selectedShareUserId;
+                        if (!userId) return;
+                        try {
+                          setShareError(null);
+                          if (editingView) {
+                            const newShare = await addShare(editingView.id, 'user', userId);
+                            setShares((prev) => [...prev, newShare]);
+                          } else {
+                            // Queue share until after view is created
+                            setPendingShareUserIds((prev) => {
+                              const next = new Set(prev);
+                              next.add(userId);
+                              return Array.from(next);
+                            });
+                          }
+                          setSelectedShareUserId('');
+                        } catch (err: any) {
+                          setShareError(err?.message || 'Failed to share');
                         }
-                        setShareEmail('');
-                      } catch (err: any) {
-                        setShareError(err?.message || 'Failed to share');
-                      }
-                    }}
-                  >
-                    <Plus size={14} style={{ marginRight: spacing.xs }} />
-                    Share
-                  </Button>
+                      }}
+                    >
+                      <Plus size={14} style={{ marginRight: spacing.xs }} />
+                      Share
+                    </Button>
+                  </div>
                 </div>
 
                 {shareError && (
@@ -1300,7 +1333,7 @@ export function ViewSelector({ tableId, onViewChange, onReady, availableColumns 
                   })}>
                     Loading shares...
                   </div>
-                ) : (editingView ? shares.length : pendingShareEmails.length) === 0 ? (
+                ) : (editingView ? shares.length : pendingShareUserIds.length) === 0 ? (
                   <div style={styles({
                     padding: spacing.xl,
                     textAlign: 'center',
@@ -1318,17 +1351,17 @@ export function ViewSelector({ tableId, onViewChange, onReady, availableColumns 
                       fontWeight: ts.label.fontWeight,
                       color: colors.text.secondary,
                     })}>
-                      Shared with {(editingView ? shares.length : pendingShareEmails.length)} {(editingView ? shares.length : pendingShareEmails.length) === 1 ? 'user' : 'people'}
+                      Shared with {(editingView ? shares.length : pendingShareUserIds.length)} {(editingView ? shares.length : pendingShareUserIds.length) === 1 ? 'user' : 'people'}
                     </div>
                     {(editingView ? shares.map((share) => ({
                       id: share.id,
                       principalType: share.principalType,
                       principalId: share.principalId,
                       removable: true,
-                    })) : pendingShareEmails.map((email) => ({
-                      id: `pending:${email}`,
+                    })) : pendingShareUserIds.map((userId) => ({
+                      id: `pending:${userId}`,
                       principalType: 'user' as const,
-                      principalId: email,
+                      principalId: userId,
                       removable: true,
                     }))).map((item) => (
                       <div
@@ -1346,7 +1379,7 @@ export function ViewSelector({ tableId, onViewChange, onReady, availableColumns 
                         <Users size={16} style={{ color: colors.text.muted }} />
                         <div style={{ flex: 1 }}>
                           <div style={styles({ fontSize: ts.body.fontSize, color: colors.text.primary })}>
-                            {item.principalId}
+                            {getUserDisplayName(item.principalId)}
                           </div>
                           <div style={styles({ fontSize: '11px', color: colors.text.muted })}>
                             {item.principalType === 'user' ? 'User' : item.principalType === 'group' ? 'Group' : 'Role'}
@@ -1359,7 +1392,7 @@ export function ViewSelector({ tableId, onViewChange, onReady, availableColumns 
                                 await removeShare(editingView.id, item.principalType, item.principalId);
                                 setShares((prev) => prev.filter((s) => s.id !== item.id));
                               } else {
-                                setPendingShareEmails((prev) => prev.filter((e) => e !== item.principalId));
+                                setPendingShareUserIds((prev) => prev.filter((id) => id !== item.principalId));
                               }
                             } catch (err: any) {
                               setShareError(err?.message || 'Failed to remove share');
@@ -1393,6 +1426,8 @@ export function ViewSelector({ tableId, onViewChange, onReady, availableColumns 
                 justifyContent: 'flex-end',
                 paddingTop: spacing.lg,
                 borderTop: `1px solid ${colors.border.subtle}`,
+                position: 'relative',
+                zIndex: 1,
               })}
             >
               <Button

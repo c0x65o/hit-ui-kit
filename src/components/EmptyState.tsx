@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { FileQuestion } from 'lucide-react';
-import { useThemeTokens } from '../theme/index.js';
+import { useThemeTokens } from '../theme/index';
 import { styles } from './utils';
 import type { EmptyStateProps } from '../types';
 

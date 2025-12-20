@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { CheckCircle, AlertTriangle, AlertCircle, Info } from 'lucide-react';
-import { useThemeTokens } from '../theme/index.js';
+import { useThemeTokens } from '../theme/index';
 import { styles } from './utils';
 import { Modal } from './Modal';
 import { Button } from './Button';

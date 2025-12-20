@@ -8,7 +8,7 @@ export function Card({ title, description, footer, children, className }) {
             backgroundColor: colors.bg.surface,
             border: `1px solid ${colors.border.subtle}`,
             borderRadius: radius.lg,
-            overflow: 'hidden',
+            overflow: 'visible',
         }), children: [(title || description) && (_jsxs("div", { style: styles({
                     padding: componentSpacing.card.padding,
                     borderBottom: `1px solid ${colors.border.subtle}`,

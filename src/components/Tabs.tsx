@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useThemeTokens } from '../theme/index.js';
+import { useThemeTokens } from '../theme/index';
 import { styles } from './utils';
 
 // Extended props to support both APIs:
