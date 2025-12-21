@@ -71,6 +71,8 @@ export function DataTable<TData extends Record<string, unknown>>({
   emptyMessage = 'No data available',
   loading = false,
   pageSize = 10,
+  pageSizeOptions = [10, 25, 50, 100],
+  onPageSizeChange,
   initialSorting,
   initialColumnVisibility,
   // Server-side pagination
@@ -375,6 +377,11 @@ export function DataTable<TData extends Record<string, unknown>>({
 
   const visibleColumns = table.getVisibleFlatColumns();
   const hasData = data.length > 0;
+  const showPageSizeSelector = Boolean(onPageSizeChange) && (pageSizeOptions?.length || 0) > 0;
+  const shouldShowPagination =
+    !showLoadingState &&
+    hasData &&
+    (manualPagination ? total !== undefined : table.getPageCount() > 1 || showPageSizeSelector);
 
   return (
     <>
@@ -776,7 +783,7 @@ export function DataTable<TData extends Record<string, unknown>>({
       </div>
 
       {/* Pagination */}
-      {!showLoadingState && hasData && (manualPagination ? (total !== undefined && total > pageSize) : table.getPageCount() > 1) && (
+      {shouldShowPagination && (
         <div style={styles({
           display: 'flex',
           alignItems: 'center',
@@ -807,6 +814,26 @@ export function DataTable<TData extends Record<string, unknown>>({
           </div>
 
           <div style={{ display: 'flex', gap: spacing.xs, alignItems: 'center' }}>
+            {showPageSizeSelector && (
+              <Dropdown
+                align="right"
+                trigger={
+                  <Button variant="ghost" size="sm">
+                    {pageSize} / page <ChevronDown size={14} style={{ marginLeft: spacing.xs }} />
+                  </Button>
+                }
+                items={pageSizeOptions.map((opt) => ({
+                  label: `${opt} / page`,
+                  onClick: () => {
+                    // Reset to first page when page size changes
+                    setPagination((prev) => ({ ...prev, pageIndex: 0, pageSize: opt }));
+                    if (manualPagination && onPageChange) onPageChange(1);
+                    onPageSizeChange(opt);
+                  },
+                  disabled: opt === pageSize,
+                }))}
+              />
+            )}
             <Button
               variant="ghost"
               size="sm"
