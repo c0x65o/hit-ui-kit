@@ -40,9 +40,11 @@ export function Modal({ open, onClose, title, description, size = 'md', children
             }), children: [_jsx("div", { onClick: onClose, style: styles({
                         position: 'fixed',
                         inset: 0,
+                        zIndex: 1,
                         backgroundColor: 'rgba(0, 0, 0, 0.6)',
                     }) }), _jsxs("div", { style: styles({
                         position: 'relative',
+                        zIndex: 2,
                         width: '100%',
                         backgroundColor: colors.bg.surface,
                         border: `1px solid ${colors.border.subtle}`,

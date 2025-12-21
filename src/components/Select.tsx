@@ -127,7 +127,6 @@ export function Select({
                 textAlign: 'left',
                 color: opt.disabled ? colors.text.muted : (opt.value === value ? colors.primary.default : colors.text.primary),
                 backgroundColor: opt.value === value ? colors.bg.elevated : 'transparent',
-                background: 'none',
                 border: 'none',
                 cursor: opt.disabled ? 'not-allowed' : 'pointer',
                 opacity: opt.disabled ? 0.5 : 1,
