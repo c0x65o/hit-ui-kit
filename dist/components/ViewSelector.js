@@ -173,12 +173,29 @@ export function ViewSelector({ tableId, onViewChange, onReady, availableColumns 
         ]);
     };
     const handleRemoveFilter = (index) => {
-        setBuilderFilters(builderFilters.filter((_, i) => i !== index));
+        setBuilderFilters((prev) => prev.filter((_, i) => i !== index));
     };
     const handleFilterChange = (index, field, value) => {
-        const newFilters = [...builderFilters];
-        newFilters[index] = { ...newFilters[index], [field]: value };
-        setBuilderFilters(newFilters);
+        setBuilderFilters((prev) => {
+            const newFilters = [...prev];
+            newFilters[index] = { ...newFilters[index], [field]: value };
+            return newFilters;
+        });
+    };
+    // Update multiple filter fields at once (avoids stale closure issues)
+    const handleFilterFieldChange = (index, newField) => {
+        const newCol = availableColumns.find((c) => c.key === newField);
+        const defaultOp = getOperatorOptions(newCol?.type)[0]?.value || 'equals';
+        setBuilderFilters((prev) => {
+            const newFilters = [...prev];
+            newFilters[index] = {
+                ...newFilters[index],
+                field: newField,
+                operator: defaultOp,
+                value: '',
+            };
+            return newFilters;
+        });
     };
     const handleAddSort = () => {
         const firstColumn = availableColumns[0];
@@ -608,14 +625,7 @@ export function ViewSelector({ tableId, onViewChange, onReady, availableColumns 
                                                 backgroundColor: colors.bg.elevated,
                                                 borderRadius: radius.md,
                                                 border: `1px solid ${colors.border.subtle}`,
-                                            }), children: [_jsx(Select, { value: filter.field, onChange: (value) => {
-                                                        // Reset operator and value when field changes
-                                                        const newCol = availableColumns.find((c) => c.key === value);
-                                                        const defaultOp = getOperatorOptions(newCol?.type)[0]?.value || 'equals';
-                                                        handleFilterChange(index, 'field', value);
-                                                        handleFilterChange(index, 'operator', defaultOp);
-                                                        handleFilterChange(index, 'value', '');
-                                                    }, options: availableColumns.length > 0
+                                            }), children: [_jsx(Select, { value: filter.field, onChange: (value) => handleFilterFieldChange(index, value), options: availableColumns.length > 0
                                                         ? availableColumns.map((c) => ({ value: c.key, label: c.label }))
                                                         : [{ value: 'status', label: 'Status' }], placeholder: "Field" }), _jsx(Select, { value: filter.operator, onChange: (value) => handleFilterChange(index, 'operator', value), options: getOperatorOptions(col?.type), placeholder: "Operator" }), renderValueInput(filter, index, col), _jsx("button", { onClick: () => handleRemoveFilter(index), style: styles({
                                                         padding: spacing.sm,

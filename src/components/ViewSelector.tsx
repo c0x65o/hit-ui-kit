@@ -214,13 +214,31 @@ export function ViewSelector({ tableId, onViewChange, onReady, availableColumns 
   };
 
   const handleRemoveFilter = (index: number) => {
-    setBuilderFilters(builderFilters.filter((_, i) => i !== index));
+    setBuilderFilters((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleFilterChange = (index: number, field: string, value: any) => {
-    const newFilters = [...builderFilters];
-    newFilters[index] = { ...newFilters[index], [field]: value };
-    setBuilderFilters(newFilters);
+    setBuilderFilters((prev) => {
+      const newFilters = [...prev];
+      newFilters[index] = { ...newFilters[index], [field]: value };
+      return newFilters;
+    });
+  };
+
+  // Update multiple filter fields at once (avoids stale closure issues)
+  const handleFilterFieldChange = (index: number, newField: string) => {
+    const newCol = availableColumns.find((c) => c.key === newField);
+    const defaultOp = getOperatorOptions(newCol?.type)[0]?.value || 'equals';
+    setBuilderFilters((prev) => {
+      const newFilters = [...prev];
+      newFilters[index] = {
+        ...newFilters[index],
+        field: newField,
+        operator: defaultOp,
+        value: '',
+      };
+      return newFilters;
+    });
   };
 
   const handleAddSort = () => {
@@ -988,14 +1006,7 @@ export function ViewSelector({ tableId, onViewChange, onReady, availableColumns 
                         >
                           <Select
                             value={filter.field}
-                            onChange={(value) => {
-                              // Reset operator and value when field changes
-                              const newCol = availableColumns.find((c) => c.key === value);
-                              const defaultOp = getOperatorOptions(newCol?.type)[0]?.value || 'equals';
-                              handleFilterChange(index, 'field', value);
-                              handleFilterChange(index, 'operator', defaultOp);
-                              handleFilterChange(index, 'value', '');
-                            }}
+                            onChange={(value) => handleFilterFieldChange(index, value)}
                             options={availableColumns.length > 0 
                               ? availableColumns.map((c) => ({ value: c.key, label: c.label }))
                               : [{ value: 'status', label: 'Status' }]
