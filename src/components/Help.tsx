@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { HelpCircle, X } from 'lucide-react';
-import { useThemeTokens } from '../theme/index';
+import { useThemeTokens } from '../theme/index.js';
 import { styles } from './utils';
 import type { HelpProps } from '../types';
 

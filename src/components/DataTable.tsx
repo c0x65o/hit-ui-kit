@@ -28,7 +28,7 @@ import {
   RefreshCw,
   ChevronRight as ChevronRightIcon,
 } from 'lucide-react';
-import { useThemeTokens } from '../theme/index';
+import { useThemeTokens } from '../theme/index.js';
 import { styles } from './utils';
 import { Button } from './Button';
 import { Input } from './Input';

@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
-import { useThemeTokens } from '../theme/index';
+import { useThemeTokens } from '../theme/index.js';
 import { styles } from './utils';
 
 export interface FormInputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'onChange'> {

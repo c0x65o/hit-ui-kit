@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { ChevronRight, Home } from 'lucide-react';
-import { useThemeTokens } from '../theme/index';
+import { useThemeTokens } from '../theme/index.js';
 import { styles } from './utils';
 import type { BreadcrumbProps, BreadcrumbItem } from '../types';
 

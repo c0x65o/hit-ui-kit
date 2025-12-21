@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { ChevronDown } from 'lucide-react';
-import { useThemeTokens } from '../theme/index';
+import { useThemeTokens } from '../theme/index.js';
 import { styles } from './utils';
 import type { SelectProps } from '../types';
 
@@ -66,7 +66,7 @@ export function Select({
           backgroundColor: colors.bg.elevated,
           border: `1px solid ${error ? colors.error.default : (hovered && !disabled ? colors.primary.default : colors.border.default)}`,
           borderRadius: radius.md,
-          color: value ? colors.text.primary : colors.text.muted,
+          color: selectedOption ? colors.text.primary : colors.text.muted,
           fontSize: ts.body.fontSize,
           outline: 'none',
           opacity: disabled ? 0.5 : 1,

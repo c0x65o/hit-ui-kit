@@ -37,7 +37,7 @@ export function Select({ label, options, value, onChange, placeholder, error, di
                     backgroundColor: colors.bg.elevated,
                     border: `1px solid ${error ? colors.error.default : (hovered && !disabled ? colors.primary.default : colors.border.default)}`,
                     borderRadius: radius.md,
-                    color: value ? colors.text.primary : colors.text.muted,
+                    color: selectedOption ? colors.text.primary : colors.text.muted,
                     fontSize: ts.body.fontSize,
                     outline: 'none',
                     opacity: disabled ? 0.5 : 1,

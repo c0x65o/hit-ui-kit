@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useThemeTokens } from '../theme/index';
+import { useThemeTokens } from '../theme/index.js';
 import { styles } from './utils';
 import type { DropdownProps } from '../types';
 

@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { useThemeTokens } from '../theme/index';
+import { useThemeTokens } from '../theme/index.js';
 import { styles } from './utils';
 import type { CardProps } from '../types';
 
@@ -13,7 +13,7 @@ export function Card({ title, description, footer, children, className }: CardPr
       backgroundColor: colors.bg.surface,
       border: `1px solid ${colors.border.subtle}`,
       borderRadius: radius.lg,
-      overflow: 'visible',
+      overflow: 'hidden',
     })}>
       {(title || description) && (
         <div style={styles({
