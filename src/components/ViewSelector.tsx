@@ -956,7 +956,7 @@ export function ViewSelector({ tableId, onViewChange, onReady, availableColumns 
             {activeTab === 'filters' && (
               <div style={styles({ display: 'flex', flexDirection: 'column', gap: spacing.md })}>
                 <div style={styles({ display: 'flex', gap: spacing.md, alignItems: 'flex-end' })}>
-                  <div style={{ flex: 1, minWidth: 260 }}>
+                  <div style={{ maxWidth: 280 }}>
                     <Select
                       label="Match"
                       value={builderFilterMode}
@@ -965,6 +965,7 @@ export function ViewSelector({ tableId, onViewChange, onReady, availableColumns 
                         { value: 'all', label: 'All filters (AND)' },
                         { value: 'any', label: 'Any filter (OR)' },
                       ]}
+                      style={{ marginBottom: 0 }}
                     />
                   </div>
                   <Button variant="secondary" size="sm" onClick={handleAddFilter}>

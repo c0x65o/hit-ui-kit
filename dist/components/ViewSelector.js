@@ -605,10 +605,10 @@ export function ViewSelector({ tableId, onViewChange, onReady, availableColumns 
                                                 padding: '2px 6px',
                                                 borderRadius: radius.full,
                                                 fontWeight: '600',
-                                            }), children: editingView ? shares.length : pendingShareEmails.length }))] }))] }), activeTab === 'filters' && (_jsxs("div", { style: styles({ display: 'flex', flexDirection: 'column', gap: spacing.md }), children: [_jsxs("div", { style: styles({ display: 'flex', gap: spacing.md, alignItems: 'flex-end' }), children: [_jsx("div", { style: { flex: 1, minWidth: 260 }, children: _jsx(Select, { label: "Match", value: builderFilterMode, onChange: (v) => setBuilderFilterMode(v === 'any' ? 'any' : 'all'), options: [
+                                            }), children: editingView ? shares.length : pendingShareEmails.length }))] }))] }), activeTab === 'filters' && (_jsxs("div", { style: styles({ display: 'flex', flexDirection: 'column', gap: spacing.md }), children: [_jsxs("div", { style: styles({ display: 'flex', gap: spacing.md, alignItems: 'flex-end' }), children: [_jsx("div", { style: { maxWidth: 280 }, children: _jsx(Select, { label: "Match", value: builderFilterMode, onChange: (v) => setBuilderFilterMode(v === 'any' ? 'any' : 'all'), options: [
                                                     { value: 'all', label: 'All filters (AND)' },
                                                     { value: 'any', label: 'Any filter (OR)' },
-                                                ] }) }), _jsxs(Button, { variant: "secondary", size: "sm", onClick: handleAddFilter, children: [_jsx(Plus, { size: 14, style: { marginRight: spacing.xs } }), "Add Filter"] })] }), builderFilters.length === 0 ? (_jsx("div", { style: styles({
+                                                ], style: { marginBottom: 0 } }) }), _jsxs(Button, { variant: "secondary", size: "sm", onClick: handleAddFilter, children: [_jsx(Plus, { size: 14, style: { marginRight: spacing.xs } }), "Add Filter"] })] }), builderFilters.length === 0 ? (_jsx("div", { style: styles({
                                         padding: spacing.xl,
                                         textAlign: 'center',
                                         color: colors.text.muted,
