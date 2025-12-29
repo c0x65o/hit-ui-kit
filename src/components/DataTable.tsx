@@ -37,6 +37,14 @@ import { ViewSelector } from './ViewSelector';
 import type { DataTableProps } from '../types';
 import type { TableView } from '../hooks/useTableView';
 
+type BucketColumnDef = {
+  columnKey: string;
+  columnLabel: string;
+  entityKind: string | null;
+  entityIdField: string;
+  buckets: Array<{ segmentKey: string; bucketLabel: string; sortOrder: number }>;
+};
+
 /**
  * DataTable Component
  * 
@@ -120,6 +128,20 @@ export function DataTable<TData extends Record<string, unknown>>({
   
   // Track if view system is ready (to prevent flash before view is applied)
   const [viewSystemReady, setViewSystemReady] = useState(!viewsEnabled);
+
+  // Segment bucket columns (discovered via metrics-core, keyed by columnKey)
+  const [bucketColumns, setBucketColumns] = useState<Record<string, BucketColumnDef>>({});
+  const [bucketColumnsLoaded, setBucketColumnsLoaded] = useState(false);
+
+  // Per-row evaluated bucket values for current page: { [columnKey]: { [entityId]: bucketLabel } }
+  const [bucketValues, setBucketValues] = useState<Record<string, Record<string, string>>>({});
+
+  // Server-side bucket grouping state (only used when grouping by a bucket column)
+  const [bucketGroupLoading, setBucketGroupLoading] = useState(false);
+  const [bucketGroupError, setBucketGroupError] = useState<string | null>(null);
+  const [bucketGroupPages, setBucketGroupPages] = useState<Record<string, number>>({});
+  const [bucketGroupBySeg, setBucketGroupBySeg] = useState<Record<string, { segmentKey: string; bucketLabel: string; sortOrder: number; total: number; pageSize: number; rows: any[] }>>({});
+  const [bucketGroupOrder, setBucketGroupOrder] = useState<string[]>([]);
   
   // Effective groupBy - view setting takes precedence over prop
   const groupBy = viewGroupBy ? {
@@ -128,6 +150,240 @@ export function DataTable<TData extends Record<string, unknown>>({
     renderLabel: groupByProp?.renderLabel,
     defaultCollapsed: groupByProp?.defaultCollapsed,
   } : groupByProp;
+
+  // Discover bucket columns for this tableId (admin-only on backend today; failures are silent).
+  useEffect(() => {
+    if (!viewsEnabled || !tableId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/metrics/segments/table-buckets?tableId=${encodeURIComponent(tableId)}`, { method: 'GET' });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          if (!cancelled) {
+            setBucketColumns({});
+            setBucketColumnsLoaded(true);
+          }
+          return;
+        }
+        const cols = Array.isArray(json?.data?.columns) ? json.data.columns : [];
+        const next: Record<string, BucketColumnDef> = {};
+        for (const c of cols as any[]) {
+          const columnKey = typeof c?.columnKey === 'string' ? c.columnKey.trim() : '';
+          if (!columnKey) continue;
+          const columnLabel = typeof c?.columnLabel === 'string' && c.columnLabel.trim() ? c.columnLabel.trim() : columnKey;
+          const entityKind = typeof c?.entityKind === 'string' ? c.entityKind.trim() : null;
+          const entityIdField = typeof c?.entityIdField === 'string' && c.entityIdField.trim() ? c.entityIdField.trim() : 'id';
+          const buckets = Array.isArray(c?.buckets) ? c.buckets : [];
+          next[columnKey] = {
+            columnKey,
+            columnLabel,
+            entityKind,
+            entityIdField,
+            buckets: buckets
+              .map((b: any) => ({
+                segmentKey: String(b?.segmentKey || '').trim(),
+                bucketLabel: String(b?.bucketLabel || '').trim(),
+                sortOrder: Number(b?.sortOrder ?? 0) || 0,
+              }))
+              .filter((b: any) => b.segmentKey && b.bucketLabel),
+          };
+        }
+        if (!cancelled) {
+          setBucketColumns(next);
+          setBucketColumnsLoaded(true);
+        }
+      } catch {
+        if (!cancelled) {
+          setBucketColumns({});
+          setBucketColumnsLoaded(true);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [viewsEnabled, tableId]);
+
+  // Ensure newly discovered bucket columns default to hidden unless already specified.
+  useEffect(() => {
+    if (!bucketColumnsLoaded) return;
+    const keys = Object.keys(bucketColumns || {});
+    if (!keys.length) return;
+    setColumnVisibility((prev) => {
+      const next = { ...(prev || {}) } as any;
+      let changed = false;
+      for (const k of keys) {
+        if (next[k] === undefined) {
+          next[k] = false;
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [bucketColumnsLoaded, bucketColumns]);
+
+  // Evaluate bucket labels for visible bucket columns on current page rows (best-effort, non-sorting).
+  useEffect(() => {
+    if (!tableId) return;
+    const visibleBucketKeys = Object.keys(bucketColumns || {}).filter((k) => (columnVisibility as any)?.[k] === true);
+    if (!visibleBucketKeys.length) return;
+
+    const MAX = 500;
+    const idsByCol: Record<string, string[]> = {};
+    for (const k of visibleBucketKeys) {
+      const meta = bucketColumns[k];
+      const idField = meta?.entityIdField || 'id';
+      const ids = (data || [])
+        .map((row: any) => String(row?.[idField] ?? '').trim())
+        .filter(Boolean)
+        .slice(0, MAX);
+      if (ids.length) idsByCol[k] = ids;
+    }
+    const colKeys = Object.keys(idsByCol);
+    if (!colKeys.length) return;
+
+    let cancelled = false;
+    (async () => {
+      for (const colKey of colKeys) {
+        const meta = bucketColumns[colKey];
+        const entityKind = meta?.entityKind || '';
+        if (!entityKind) continue;
+        try {
+          const res = await fetch('/api/metrics/segments/table-buckets/evaluate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tableId, columnKey: colKey, entityKind, entityIds: idsByCol[colKey] }),
+          });
+          const json = await res.json().catch(() => ({}));
+          if (!res.ok) continue;
+          const values = json?.data?.values && typeof json.data.values === 'object' ? json.data.values : {};
+          const map: Record<string, string> = {};
+          for (const [id, val] of Object.entries(values)) {
+            const x: any = val;
+            const label = x && typeof x === 'object' && typeof x.bucketLabel === 'string' ? x.bucketLabel : '';
+            if (label) map[String(id)] = label;
+          }
+          if (!cancelled) {
+            setBucketValues((prev) => ({ ...(prev || {}), [colKey]: map }));
+          }
+        } catch {
+          // ignore
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [tableId, data, bucketColumns, columnVisibility]);
+
+  const augmentedData = useMemo(() => {
+    const dynKeys = Object.keys(bucketColumns || {});
+    if (!dynKeys.length) return data;
+    const activeCols = Object.keys(bucketValues || {});
+    if (!activeCols.length) return data;
+    return (data || []).map((row: any) => {
+      const next = { ...(row as any) };
+      for (const colKey of activeCols) {
+        const meta = bucketColumns[colKey];
+        const idField = meta?.entityIdField || 'id';
+        const id = String((row as any)?.[idField] ?? '').trim();
+        if (!id) continue;
+        const label = bucketValues[colKey]?.[id];
+        if (label) next[colKey] = label;
+      }
+      return next as TData;
+    });
+  }, [data, bucketColumns, bucketValues]);
+
+  const bucketGroupMeta = groupBy && tableId ? bucketColumns[groupBy.field] : null;
+  const isServerBucketGroup = Boolean(groupBy && tableId && bucketGroupMeta && bucketGroupMeta.entityKind);
+
+  async function fetchBucketGroups(pages: Record<string, number>) {
+    if (!tableId || !groupBy || !bucketGroupMeta?.entityKind) return;
+    setBucketGroupLoading(true);
+    setBucketGroupError(null);
+    try {
+      const res = await fetch('/api/table-data/grouped-buckets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tableId,
+          columnKey: groupBy.field,
+          entityKind: bucketGroupMeta.entityKind,
+          pageSize: groupPageSize,
+          bucketPages: pages,
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json?.error || `grouped-buckets ${res.status}`);
+      const buckets = Array.isArray(json?.data?.buckets) ? json.data.buckets : [];
+
+      // Merge pages into accumulated rows.
+      setBucketGroupBySeg((prev) => {
+        const next = { ...(prev || {}) } as any;
+        for (const b of buckets as any[]) {
+          const segmentKey = String(b?.segmentKey || '').trim();
+          if (!segmentKey) continue;
+          const bucketLabel = String(b?.bucketLabel || '').trim() || segmentKey;
+          const sortOrder = Number(b?.sortOrder ?? 0) || 0;
+          const total = Number(b?.total ?? 0) || 0;
+          const pageSizeResp = Number(b?.pageSize ?? groupPageSize) || groupPageSize;
+          const page = Number(b?.page ?? 1) || 1;
+          const rows = Array.isArray(b?.rows) ? b.rows : [];
+
+          const prior = next[segmentKey];
+          const idField = bucketGroupMeta.entityIdField || 'id';
+          const normId = (r: any) => String(r?.[idField] ?? r?.id ?? '').trim();
+
+          let mergedRows: any[] = rows;
+          if (page > 1 && prior && Array.isArray(prior.rows)) {
+            const seen = new Set(prior.rows.map(normId).filter(Boolean));
+            mergedRows = [...prior.rows];
+            for (const r of rows) {
+              const id = normId(r);
+              if (!id || seen.has(id)) continue;
+              seen.add(id);
+              mergedRows.push(r);
+            }
+          }
+          if (page === 1) mergedRows = rows;
+
+          next[segmentKey] = { segmentKey, bucketLabel, sortOrder, total, pageSize: pageSizeResp, rows: mergedRows };
+        }
+        return next;
+      });
+
+      const order = (buckets as any[])
+        .map((b: any) => ({ segmentKey: String(b?.segmentKey || '').trim(), sortOrder: Number(b?.sortOrder ?? 0) || 0, bucketLabel: String(b?.bucketLabel || '').trim() }))
+        .filter((b: any) => b.segmentKey)
+        .sort((a: any, b: any) => (a.sortOrder - b.sortOrder) || a.bucketLabel.localeCompare(b.bucketLabel) || a.segmentKey.localeCompare(b.segmentKey))
+        .map((b: any) => b.segmentKey);
+      setBucketGroupOrder(order);
+    } catch (e: any) {
+      setBucketGroupError(String(e?.message || 'Failed to load bucket groups'));
+    } finally {
+      setBucketGroupLoading(false);
+    }
+  }
+
+  // Load server-side bucket grouping when grouping by a bucket column.
+  useEffect(() => {
+    if (!isServerBucketGroup) return;
+    setBucketGroupBySeg({});
+    setBucketGroupOrder([]);
+    setBucketGroupPages({});
+    fetchBucketGroups({});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isServerBucketGroup, tableId, groupBy?.field, groupPageSize]);
+
+  // When a bucket group's page changes, fetch more rows.
+  useEffect(() => {
+    if (!isServerBucketGroup) return;
+    fetchBucketGroups(bucketGroupPages);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bucketGroupPages]);
   
   // Use external page if provided (server-side), otherwise use internal state (client-side)
   const [internalPage, setInternalPage] = useState(0);
@@ -150,6 +406,13 @@ export function DataTable<TData extends Record<string, unknown>>({
 
   // Initialize collapsed groups if defaultCollapsed is true
   useEffect(() => {
+    if (groupBy?.defaultCollapsed && isServerBucketGroup) {
+      const keys = bucketGroupOrder.length ? bucketGroupOrder : Object.keys(bucketGroupBySeg || {});
+      if (keys.length > 0) {
+        setCollapsedGroups(new Set(keys));
+      }
+      return;
+    }
     if (groupBy?.defaultCollapsed && data.length > 0) {
       const groups = new Set<string>();
       for (const row of data) {
@@ -159,11 +422,11 @@ export function DataTable<TData extends Record<string, unknown>>({
       }
       setCollapsedGroups(groups);
     }
-  }, [groupBy?.defaultCollapsed, groupBy?.field, data]);
+  }, [groupBy?.defaultCollapsed, groupBy?.field, data, isServerBucketGroup, bucketGroupOrder, bucketGroupBySeg]);
 
   // Convert columns to TanStack Table format
   const tableColumns = useMemo<ColumnDef<TData>[]>(() => {
-    return columns.map((col) => ({
+    const base = columns.map((col) => ({
       id: col.key,
       accessorKey: col.key,
       header: col.label,
@@ -177,10 +440,24 @@ export function DataTable<TData extends Record<string, unknown>>({
       enableSorting: col.sortable !== false,
       enableHiding: col.hideable !== false,
     }));
-  }, [columns]);
+
+    const dyn = Object.values(bucketColumns || {}).map((c) => ({
+      id: c.columnKey,
+      accessorKey: c.columnKey,
+      header: c.columnLabel || c.columnKey,
+      cell: ({ getValue }: { getValue: () => any }) => {
+        const v = getValue();
+        return (v ? String(v) : '') as React.ReactNode;
+      },
+      enableSorting: false,
+      enableHiding: true,
+    })) as any[];
+
+    return [...base, ...dyn] as any;
+  }, [columns, bucketColumns]);
 
   const table = useReactTable({
-    data,
+    data: augmentedData,
     columns: tableColumns,
     state: {
       sorting,
@@ -227,6 +504,44 @@ export function DataTable<TData extends Record<string, unknown>>({
         data: row.original,
         index: row.index,
       }));
+    }
+
+    // Server-side grouping for bucket columns
+    if (isServerBucketGroup) {
+      const result: GroupedRow[] = [];
+      const order = bucketGroupOrder.length ? bucketGroupOrder : Object.keys(bucketGroupBySeg || {});
+      for (const segmentKey of order) {
+        const g: any = (bucketGroupBySeg as any)?.[segmentKey];
+        if (!g) continue;
+        const groupKey = segmentKey;
+        const groupValue = g.bucketLabel || segmentKey;
+        const groupData: TData[] = Array.isArray(g.rows) ? (g.rows as TData[]) : [];
+
+        result.push({ type: 'group', groupValue, groupData, groupKey });
+
+        const isCollapsed = collapsedGroups.has(groupKey);
+        if (!isCollapsed) {
+          groupData.forEach((rowData, idx) => {
+            result.push({ type: 'row', data: rowData, index: idx });
+          });
+
+          const total = Number(g.total || 0) || 0;
+          const loaded = groupData.length;
+          if (loaded < total) {
+            const currentPage = Math.max(1, Number(bucketGroupPages[groupKey] || 1) || 1);
+            const pageSizeEff = Number(g.pageSize || groupPageSize) || groupPageSize;
+            const totalPages = Math.max(1, Math.ceil(total / pageSizeEff));
+            result.push({
+              type: 'show-more',
+              groupKey,
+              remainingCount: Math.max(0, total - loaded),
+              currentPage,
+              totalPages,
+            });
+          }
+        }
+      }
+      return result;
     }
 
     const filteredRows = table.getRowModel().rows;
@@ -336,7 +651,7 @@ export function DataTable<TData extends Record<string, unknown>>({
     }
 
     return result;
-  }, [groupBy, table, collapsedGroups, globalFilter, sorting, pagination, groupPages, groupPageSize]);
+  }, [groupBy, table, collapsedGroups, globalFilter, sorting, pagination, groupPages, groupPageSize, isServerBucketGroup, bucketGroupBySeg, bucketGroupOrder, bucketGroupPages]);
 
   // Export to CSV
   const handleExport = () => {
@@ -403,13 +718,22 @@ export function DataTable<TData extends Record<string, unknown>>({
           {viewsEnabled && tableId && (
             <ViewSelector 
               tableId={tableId} 
-              availableColumns={columns.map((col) => ({ 
-                key: col.key, 
-                label: col.label, 
-                type: col.filterType || 'string',
-                options: col.filterOptions,
-                hideable: col.hideable !== false,
-              }))}
+              availableColumns={[
+                ...columns.map((col) => ({ 
+                  key: col.key, 
+                  label: col.label, 
+                  type: col.filterType || 'string',
+                  options: col.filterOptions,
+                  hideable: col.hideable !== false,
+                })),
+                ...Object.values(bucketColumns || {}).map((c) => ({
+                  key: c.columnKey,
+                  label: c.columnLabel || c.columnKey,
+                  type: 'select' as const,
+                  options: (c.buckets || []).map((b) => ({ value: b.bucketLabel, label: b.bucketLabel, sortOrder: b.sortOrder })),
+                  hideable: true,
+                })),
+              ]}
               onReady={setViewSystemReady}
               onViewChange={(view: TableView | null) => {
                 if (onViewChange) {
@@ -657,7 +981,12 @@ export function DataTable<TData extends Record<string, unknown>>({
                               {typeof groupLabel === 'string' ? <span>{groupLabel}</span> : groupLabel}
                             </div>
                             <span style={{ color: colors.text.muted, fontSize: ts.bodySmall.fontSize }}>
-                              ({item.groupData.length})
+                              {isServerBucketGroup
+                                ? (() => {
+                                    const total = Number((bucketGroupBySeg as any)?.[item.groupKey]?.total || 0) || 0;
+                                    return `(${item.groupData.length} of ${total || item.groupData.length})`;
+                                  })()
+                                : `(${item.groupData.length})`}
                             </span>
                           </div>
                         </td>
@@ -684,10 +1013,17 @@ export function DataTable<TData extends Record<string, unknown>>({
                             variant="ghost"
                             size="sm"
                             onClick={() => {
-                              setGroupPages((prev) => ({
-                                ...prev,
-                                [item.groupKey]: (prev[item.groupKey] ?? 0) + 1,
-                              }));
+                              if (isServerBucketGroup) {
+                                setBucketGroupPages((prev) => ({
+                                  ...(prev || {}),
+                                  [item.groupKey]: (prev?.[item.groupKey] ?? 1) + 1,
+                                }));
+                              } else {
+                                setGroupPages((prev) => ({
+                                  ...prev,
+                                  [item.groupKey]: (prev[item.groupKey] ?? 0) + 1,
+                                }));
+                              }
                             }}
                           >
                             <ChevronDown size={14} style={{ marginRight: spacing.xs }} />
@@ -697,7 +1033,52 @@ export function DataTable<TData extends Record<string, unknown>>({
                       </tr>
                     );
                   } else {
-                    // Regular row - find the corresponding table row
+                    // Regular row
+                    if (isServerBucketGroup) {
+                      const rowData: any = item.data as any;
+                      const rowKey = String(rowData?.id || rowData?.key || '') || `row-${idx}`;
+                      return (
+                        <tr
+                          key={`row-${rowKey}-${idx}`}
+                          onClick={() => onRowClick?.(rowData, idx)}
+                          style={styles({
+                            borderBottom: `1px solid ${colors.border.subtle}`,
+                            cursor: onRowClick ? 'pointer' : 'default',
+                            transition: 'background-color 150ms ease',
+                          })}
+                          onMouseEnter={(e) => {
+                            if (onRowClick) {
+                              e.currentTarget.style.backgroundColor = colors.bg.elevated;
+                            }
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = 'transparent';
+                          }}
+                        >
+                          {table.getVisibleFlatColumns().map((col: any) => {
+                            const colId = String(col?.id || '');
+                            const baseCol: any = (columns as any[]).find((c) => c?.key === colId) || null;
+                            const value = rowData?.[colId];
+                            const content = baseCol?.render ? baseCol.render(value, rowData, idx) : (value == null ? '' : String(value));
+                            return (
+                              <td
+                                key={`${rowKey}-${colId}-${idx}`}
+                                style={styles({
+                                  padding: `${spacing.md} ${spacing.lg}`,
+                                  textAlign: (col.columnDef.meta as any)?.align || 'left',
+                                  fontSize: ts.body.fontSize,
+                                  color: colors.text.secondary,
+                                })}
+                              >
+                                {content as any}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      );
+                    }
+
+                    // Client row - find the corresponding table row
                     const tableRow = table.getRowModel().rows.find((r: any) => {
                       // Compare by reference or by ID if available
                       return r.original === item.data || 
