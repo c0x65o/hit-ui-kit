@@ -13,7 +13,7 @@ import { usePrincipals } from '@hit/feature-pack-auth-core';
  * Supports both hierarchical and granular permission modes.
  */
 export function AclPicker({ config, entries, loading: externalLoading = false, onAdd, onRemove, onUpdate, filterPrincipals, validateEntry, fetchPrincipals, disabled = false, confirmRemove = true, confirmRemoveMessage, error: externalError = null, }) {
-    const { Button, Alert, Spinner, Select, Badge, Checkbox } = useUi();
+    const { Button, Alert, Spinner, Select, Badge, Checkbox, Input } = useUi();
     const [showAddForm, setShowAddForm] = useState(false);
     const [selectedPrincipalType, setSelectedPrincipalType] = useState('user');
     const [selectedPrincipalId, setSelectedPrincipalId] = useState('');
@@ -92,8 +92,17 @@ export function AclPicker({ config, entries, loading: externalLoading = false, o
         }
         // Filter by selected type
         filtered = filtered.filter((p) => p.type === selectedPrincipalType);
+        // Local search filter (ensures groups/roles are searchable even if the backend doesn't support search)
+        const q = searchQuery.trim().toLowerCase();
+        if (q) {
+            filtered = filtered.filter((p) => {
+                const id = String(p.id || '').toLowerCase();
+                const name = String(p.displayName || '').toLowerCase();
+                return id.includes(q) || name.includes(q);
+            });
+        }
         return filtered;
-    }, [principals, filterPrincipals, selectedPrincipalType]);
+    }, [principals, filterPrincipals, selectedPrincipalType, searchQuery]);
     // Get principal options for select
     const principalOptions = useMemo(() => {
         return filteredPrincipals.map((p) => ({
@@ -106,7 +115,14 @@ export function AclPicker({ config, entries, loading: externalLoading = false, o
         setSelectedPrincipalId('');
         setSelectedPermissions([]);
         setSelectedHierarchicalLevel('');
+        setSearchQuery('');
     }, [selectedPrincipalType]);
+    // Clear search when closing add form
+    useEffect(() => {
+        if (!showAddForm) {
+            setSearchQuery('');
+        }
+    }, [showAddForm]);
     // If there's only one permission option, auto-select it to reduce clicks
     useEffect(() => {
         if (!showAddForm)
@@ -261,7 +277,11 @@ export function AclPicker({ config, entries, loading: externalLoading = false, o
                             display: 'flex',
                             flexDirection: 'column',
                             gap: '1rem',
-                        }, children: [_jsx("h4", { style: { fontWeight: 500 }, children: "Add New Access" }), availablePrincipalTypes.length > 1 && (_jsxs("div", { children: [_jsx("label", { style: { display: 'block', fontSize: '0.875rem', fontWeight: 500, marginBottom: '0.25rem' }, children: "Principal Type" }), _jsx(Select, { value: selectedPrincipalType, onChange: (value) => setSelectedPrincipalType(value), options: availablePrincipalTypes })] })), _jsxs("div", { children: [_jsx("label", { style: { display: 'block', fontSize: '0.875rem', fontWeight: 500, marginBottom: '0.25rem' }, children: availablePrincipalTypes.find(t => t.value === selectedPrincipalType)?.label || 'Principal' }), principalsLoadingState ? (_jsxs("div", { style: { display: 'flex', alignItems: 'center', gap: '0.5rem' }, children: [_jsx(Spinner, { size: "sm" }), _jsx("span", { style: { fontSize: '0.875rem', color: 'var(--text-muted, #6b7280)' }, children: "Loading options..." })] })) : (_jsx(Select, { value: selectedPrincipalId, onChange: (value) => setSelectedPrincipalId(value), options: principalOptions, placeholder: `Select ${availablePrincipalTypes.find(t => t.value === selectedPrincipalType)?.label || 'principal'}` }))] }), config.mode === 'hierarchical' && config.hierarchicalPermissions && config.hierarchicalPermissions.length > 1 && (_jsxs("div", { children: [_jsx("label", { style: { display: 'block', fontSize: '0.875rem', fontWeight: 500, marginBottom: '0.25rem' }, children: "Permissions" }), _jsx(Select, { value: selectedHierarchicalLevel, onChange: (value) => setSelectedHierarchicalLevel(value), options: config.hierarchicalPermissions.map(p => ({
+                        }, children: [_jsx("h4", { style: { fontWeight: 500 }, children: "Add New Access" }), availablePrincipalTypes.length > 1 && (_jsxs("div", { children: [_jsx("label", { style: { display: 'block', fontSize: '0.875rem', fontWeight: 500, marginBottom: '0.25rem' }, children: "Principal Type" }), _jsx(Select, { value: selectedPrincipalType, onChange: (value) => setSelectedPrincipalType(value), options: availablePrincipalTypes })] })), _jsx("div", { children: _jsx(Input, { label: "Search", value: searchQuery, onChange: (val) => setSearchQuery(val), placeholder: selectedPrincipalType === 'user'
+                                        ? 'Search users…'
+                                        : selectedPrincipalType === 'group'
+                                            ? 'Search groups…'
+                                            : 'Search roles…' }) }), _jsxs("div", { children: [_jsx("label", { style: { display: 'block', fontSize: '0.875rem', fontWeight: 500, marginBottom: '0.25rem' }, children: availablePrincipalTypes.find(t => t.value === selectedPrincipalType)?.label || 'Principal' }), principalsLoadingState ? (_jsxs("div", { style: { display: 'flex', alignItems: 'center', gap: '0.5rem' }, children: [_jsx(Spinner, { size: "sm" }), _jsx("span", { style: { fontSize: '0.875rem', color: 'var(--text-muted, #6b7280)' }, children: "Loading options..." })] })) : (_jsx(Select, { value: selectedPrincipalId, onChange: (value) => setSelectedPrincipalId(value), options: principalOptions, placeholder: `Select ${availablePrincipalTypes.find(t => t.value === selectedPrincipalType)?.label || 'principal'}` }))] }), config.mode === 'hierarchical' && config.hierarchicalPermissions && config.hierarchicalPermissions.length > 1 && (_jsxs("div", { children: [_jsx("label", { style: { display: 'block', fontSize: '0.875rem', fontWeight: 500, marginBottom: '0.25rem' }, children: "Permissions" }), _jsx(Select, { value: selectedHierarchicalLevel, onChange: (value) => setSelectedHierarchicalLevel(value), options: config.hierarchicalPermissions.map(p => ({
                                             value: p.key,
                                             label: p.description ? `${p.label} - ${p.description}` : p.label,
                                         })), placeholder: "Select permission level" })] })), config.mode === 'granular' && config.granularPermissions && config.granularPermissions.length > 1 && (_jsxs("div", { children: [_jsx("label", { style: { display: 'block', fontSize: '0.875rem', fontWeight: 500, marginBottom: '0.5rem' }, children: "Permissions" }), _jsx("div", { style: { display: 'flex', flexDirection: 'column', gap: '0.5rem' }, children: config.granularPermissions.map(perm => (_jsx(Checkbox, { label: perm.description ? `${perm.label} - ${perm.description}` : perm.label, checked: selectedPermissions.includes(perm.key), onChange: (checked) => {

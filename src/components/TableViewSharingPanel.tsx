@@ -42,7 +42,7 @@ export function TableViewSharingPanel({
   setPendingRecipients,
   addShare,
   removeShare,
-  allowPrincipalTypeSelection = false,
+  allowPrincipalTypeSelection = true,
 }: TableViewSharingPanelProps) {
   const { colors, radius, spacing, textStyles: ts } = useThemeTokens();
   const isEditing = !!viewId;
@@ -64,12 +64,8 @@ export function TableViewSharingPanel({
   }, [isEditing, shares, pendingRecipients]);
 
   const aclConfig: AclPickerConfig = useMemo(() => {
-    const principals = allowPrincipalTypeSelection
-      ? { users: true, groups: true, roles: true }
-      : { users: true, groups: false, roles: false };
-
     return {
-      principals,
+      principals: { users: true, groups: true, roles: true },
       mode: 'hierarchical',
       hierarchicalPermissions: [
         {
@@ -86,7 +82,7 @@ export function TableViewSharingPanel({
         emptyMessage: isEditing ? 'This view is not shared with anyone yet.' : 'This view will not be shared with anyone yet.',
       },
     };
-  }, [allowPrincipalTypeSelection, isEditing]);
+  }, [isEditing]);
 
   const validateDuplicate = useMemo(() => {
     const keys = new Set(entries.map((e) => `${e.principalType}:${e.principalId}`));

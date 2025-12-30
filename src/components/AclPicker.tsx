@@ -30,7 +30,7 @@ export function AclPicker({
   confirmRemoveMessage,
   error: externalError = null,
 }: AclPickerProps) {
-  const { Button, Alert, Spinner, Select, Badge, Checkbox } = useUi();
+  const { Button, Alert, Spinner, Select, Badge, Checkbox, Input } = useUi();
   
   const [showAddForm, setShowAddForm] = useState(false);
   const [selectedPrincipalType, setSelectedPrincipalType] = useState<PrincipalType>('user');
@@ -116,8 +116,17 @@ export function AclPicker({
     }
     // Filter by selected type
     filtered = filtered.filter((p: Principal) => p.type === selectedPrincipalType);
+    // Local search filter (ensures groups/roles are searchable even if the backend doesn't support search)
+    const q = searchQuery.trim().toLowerCase();
+    if (q) {
+      filtered = filtered.filter((p: Principal) => {
+        const id = String(p.id || '').toLowerCase();
+        const name = String(p.displayName || '').toLowerCase();
+        return id.includes(q) || name.includes(q);
+      });
+    }
     return filtered;
-  }, [principals, filterPrincipals, selectedPrincipalType]);
+  }, [principals, filterPrincipals, selectedPrincipalType, searchQuery]);
 
   // Get principal options for select
   const principalOptions = useMemo(() => {
@@ -132,7 +141,15 @@ export function AclPicker({
     setSelectedPrincipalId('');
     setSelectedPermissions([]);
     setSelectedHierarchicalLevel('');
+    setSearchQuery('');
   }, [selectedPrincipalType]);
+
+  // Clear search when closing add form
+  useEffect(() => {
+    if (!showAddForm) {
+      setSearchQuery('');
+    }
+  }, [showAddForm]);
 
   // If there's only one permission option, auto-select it to reduce clicks
   useEffect(() => {
@@ -340,6 +357,21 @@ export function AclPicker({
                   />
                 </div>
               )}
+
+              <div>
+                <Input
+                  label="Search"
+                  value={searchQuery}
+                  onChange={(val: string) => setSearchQuery(val)}
+                  placeholder={
+                    selectedPrincipalType === 'user'
+                      ? 'Search users…'
+                      : selectedPrincipalType === 'group'
+                        ? 'Search groups…'
+                        : 'Search roles…'
+                  }
+                />
+              </div>
 
               <div>
                 <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, marginBottom: '0.25rem' }}>

@@ -4,7 +4,7 @@ import { useMemo } from 'react';
 import { useThemeTokens } from '../theme/index.js';
 import { styles } from './utils.js';
 import { AclPicker } from './AclPicker.js';
-export function TableViewSharingPanel({ viewId, shares, setShares, sharesLoading = false, pendingRecipients, setPendingRecipients, addShare, removeShare, allowPrincipalTypeSelection = false, }) {
+export function TableViewSharingPanel({ viewId, shares, setShares, sharesLoading = false, pendingRecipients, setPendingRecipients, addShare, removeShare, allowPrincipalTypeSelection = true, }) {
     const { colors, radius, spacing, textStyles: ts } = useThemeTokens();
     const isEditing = !!viewId;
     const entries = useMemo(() => {
@@ -22,11 +22,8 @@ export function TableViewSharingPanel({ viewId, shares, setShares, sharesLoading
         return pendingRecipients.map((r) => toEntry(r.principalType, r.principalId, `pending:${r.principalType}:${r.principalId}`));
     }, [isEditing, shares, pendingRecipients]);
     const aclConfig = useMemo(() => {
-        const principals = allowPrincipalTypeSelection
-            ? { users: true, groups: true, roles: true }
-            : { users: true, groups: false, roles: false };
         return {
-            principals,
+            principals: { users: true, groups: true, roles: true },
             mode: 'hierarchical',
             hierarchicalPermissions: [
                 {
@@ -43,7 +40,7 @@ export function TableViewSharingPanel({ viewId, shares, setShares, sharesLoading
                 emptyMessage: isEditing ? 'This view is not shared with anyone yet.' : 'This view will not be shared with anyone yet.',
             },
         };
-    }, [allowPrincipalTypeSelection, isEditing]);
+    }, [isEditing]);
     const validateDuplicate = useMemo(() => {
         const keys = new Set(entries.map((e) => `${e.principalType}:${e.principalId}`));
         return (entry) => (keys.has(`${entry.principalType}:${entry.principalId}`) ? 'Already shared with this principal' : null);
