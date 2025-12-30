@@ -122,6 +122,14 @@ export function ViewSelector({ tableId, onViewChange, onReady, availableColumns 
   const customViews = views.filter((v) => v._category === 'user' || (!v.isSystem && v._category !== 'shared'));
   const sharedViews = views.filter((v) => v._category === 'shared');
 
+  // Human label for "All <table>" (derived from tableId)
+  const tableLabel = String(tableId)
+    .split('.')
+    .slice(-1)[0]
+    .replace(/[_-]+/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+  const allLabel = `All ${tableLabel}`;
+
   // Get hideable columns (all columns are hideable by default unless specified)
   const hideableColumns = availableColumns.filter((col) => col.hideable !== false);
 
@@ -532,7 +540,7 @@ export function ViewSelector({ tableId, onViewChange, onReady, availableColumns 
     <div style={{ position: 'relative' }}>
       <Button variant="secondary" size="sm" disabled={loading} onClick={() => setDropdownOpen(!dropdownOpen)}>
         <Filter size={14} style={{ marginRight: spacing.xs }} />
-        {currentView?.name || 'All Items'}
+        {currentView?.name || allLabel}
         <ChevronDown size={14} style={{ marginLeft: spacing.xs }} />
       </Button>
 
@@ -564,7 +572,7 @@ export function ViewSelector({ tableId, onViewChange, onReady, availableColumns 
                 e.currentTarget.style.backgroundColor = currentView === null ? colors.bg.elevated : 'transparent';
               }}
             >
-              <span style={{ flex: 1 }}>All Items</span>
+              <span style={{ flex: 1 }}>{allLabel}</span>
             </button>
 
             {/* Show message when no views exist */}

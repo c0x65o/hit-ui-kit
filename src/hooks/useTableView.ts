@@ -2,8 +2,12 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 
+// Sentinel value stored in cache/localStorage to represent "All <table>" selected
+// (i.e. no saved view applied, show unfiltered/un-grouped table)
+const ALL_ITEMS_SENTINEL = '__hit_all_items__';
+
 // Module-level cache to persist view selection across component remounts
-const viewSelectionCache = new Map<string, string>(); // tableId -> viewId
+const viewSelectionCache = new Map<string, string>(); // tableId -> viewId | ALL_ITEMS_SENTINEL
 
 // localStorage key for persisting view selection across page refreshes
 const getStorageKey = (tableId: string) => `hit:table-view:${tableId}`;
@@ -24,25 +28,54 @@ function getCachedViewId(tableId: string): string | null {
   }
 }
 
-// Save view ID to both caches
+// Save view selection to both caches.
+// Passing null means "All Items" (we persist it explicitly so it survives remounts/refreshes).
 function setCachedViewId(tableId: string, viewId: string | null): void {
   if (typeof window === 'undefined') return;
   
-  if (viewId) {
-    viewSelectionCache.set(tableId, viewId);
-    try {
-      localStorage.setItem(getStorageKey(tableId), viewId);
-    } catch {
-      // Ignore localStorage errors
-    }
-  } else {
-    viewSelectionCache.delete(tableId);
-    try {
-      localStorage.removeItem(getStorageKey(tableId));
-    } catch {
-      // Ignore localStorage errors
-    }
+  const valueToStore = viewId ?? ALL_ITEMS_SENTINEL;
+  viewSelectionCache.set(tableId, valueToStore);
+  try {
+    localStorage.setItem(getStorageKey(tableId), valueToStore);
+  } catch {
+    // Ignore localStorage errors
   }
+}
+
+function isAllItemsSentinel(value: string | null | undefined): boolean {
+  return value === ALL_ITEMS_SENTINEL;
+}
+
+function clearCachedViewId(tableId: string): void {
+  if (typeof window === 'undefined') return;
+  viewSelectionCache.delete(tableId);
+  try {
+    localStorage.removeItem(getStorageKey(tableId));
+  } catch {
+    // Ignore localStorage errors
+  }
+}
+
+function getViewToRestoreFromCache(tableId: string, fetchedViews: TableView[]): TableView | null {
+  const cached = getCachedViewId(tableId);
+
+  // Explicit "All Items" selection (or nothing cached yet) => restore to All Items.
+  if (cached === null || isAllItemsSentinel(cached)) {
+    return null;
+  }
+
+  const cachedView = fetchedViews.find((v) => v.id === cached) || null;
+  // If the cached ID doesn't exist anymore, fall back to All Items.
+  if (!cachedView) {
+    // Remove invalid cached id so we don't keep trying to restore it
+    clearCachedViewId(tableId);
+    return null;
+  }
+  return cachedView;
+}
+
+function persistCurrentSelection(tableId: string, view: TableView | null): void {
+  setCachedViewId(tableId, view?.id ?? null);
 }
 
 export interface TableViewFilter {
@@ -157,23 +190,19 @@ export function useTableView({ tableId, onViewChange }: UseTableViewOptions) {
       setAvailable(true);
       setError(null);
 
-      // On initial load, restore cached view or set default
-      if (resetToDefault && fetchedViews.length > 0) {
-        // Check if we have a cached view selection for this table (localStorage + memory)
-        const cachedViewId = getCachedViewId(tableId);
-        const cachedView = cachedViewId ? fetchedViews.find((v: TableView) => v.id === cachedViewId) : null;
-        const defaultView = fetchedViews.find((v: TableView) => v.isDefault) || fetchedViews[0];
-        
-        const viewToSelect = cachedView || defaultView;
-        
-        if (cachedView) {
-          console.log(`[useTableView ${instanceId.current}] Restoring cached view: ${cachedView.name}`);
+      // On initial load, restore cached selection or default to "All Items"
+      // (We persist "All Items" explicitly so it can be re-selected even once views exist.)
+      if (resetToDefault) {
+        const restored = getViewToRestoreFromCache(tableId, fetchedViews);
+        if (restored) {
+          console.log(`[useTableView ${instanceId.current}] Restoring cached view: ${restored.name}`);
         } else {
-          console.log(`[useTableView ${instanceId.current}] Setting default view: ${defaultView.name}`);
+          console.log(`[useTableView ${instanceId.current}] Restoring to All Items`);
         }
-        
-        setCurrentView(viewToSelect);
-        onViewChangeRef.current?.(viewToSelect);
+        setCurrentView(restored);
+        onViewChangeRef.current?.(restored);
+        // Persist what we restored so remounts don't re-apply a default view
+        persistCurrentSelection(tableId, restored);
       }
       
       // Mark as ready once initial view is applied
@@ -270,13 +299,14 @@ export function useTableView({ tableId, onViewChange }: UseTableViewOptions) {
         if (current?.id === viewId) {
           const newCurrentView = remaining.find((v) => v.isDefault) || remaining[0] || null;
           onViewChangeRef.current?.(newCurrentView);
+          persistCurrentSelection(tableId, newCurrentView);
           return newCurrentView;
         }
         return current;
       });
       return remaining;
     });
-  }, []);
+  }, [tableId]);
 
   const selectView = useCallback(async (view: TableView | null) => {
     console.log(`[useTableView ${instanceId.current}] selectView called - selecting: ${view?.name}`);
@@ -284,7 +314,7 @@ export function useTableView({ tableId, onViewChange }: UseTableViewOptions) {
     onViewChangeRef.current?.(view);
     
     // Cache the selection so it persists across remounts AND page refreshes
-    setCachedViewId(tableId, view?.id ?? null);
+    persistCurrentSelection(tableId, view);
     if (view) {
       console.log(`[useTableView ${instanceId.current}] Cached view selection: ${view.name} for table ${tableId}`);
     }
