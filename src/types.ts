@@ -228,6 +228,7 @@ export interface AlertProps {
   title?: string;
   children: React.ReactNode;
   onClose?: () => void;
+  className?: string;
 }
 
 export interface ModalProps {
