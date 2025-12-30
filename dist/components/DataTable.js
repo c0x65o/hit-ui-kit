@@ -906,6 +906,15 @@ tableId, enableViews, onViewFiltersChange, onViewFilterModeChange, onViewGroupBy
                                         options: (c.buckets || []).map((b) => ({ value: b.bucketLabel, label: b.bucketLabel, sortOrder: b.sortOrder })),
                                         hideable: true,
                                     })),
+                                    ...Object.values(metricColumns || {})
+                                        .slice()
+                                        .sort((a, b) => (Number(a?.sortOrder ?? 0) - Number(b?.sortOrder ?? 0)) || String(a?.columnLabel || a?.columnKey || '').localeCompare(String(b?.columnLabel || b?.columnKey || '')))
+                                        .map((c) => ({
+                                        key: c.columnKey,
+                                        label: c.columnLabel || c.columnKey,
+                                        type: 'number',
+                                        hideable: true,
+                                    })),
                                 ], onReady: setViewSystemReady, onViewChange: (view) => {
                                     currentViewIdRef.current = view?.id ?? null;
                                     hasInitializedSelectionRef.current = true;
