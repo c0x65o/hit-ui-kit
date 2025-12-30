@@ -12,6 +12,7 @@ export { Input } from './Input';
 export { TextArea } from './TextArea';
 export { Select } from './Select';
 export { Checkbox } from './Checkbox';
+export { Autocomplete, type AutocompleteOption, type AutocompleteProps } from './Autocomplete';
 export { FormInput, type FormInputProps } from './FormInput';
 export { Table } from './Table';
 export { DataTable } from './DataTable';
@@ -27,6 +28,7 @@ export { Dropdown } from './Dropdown';
 export { Breadcrumb } from './Breadcrumb';
 export { Help } from './Help';
 export { ViewSelector, FILTER_OPERATORS, type ViewColumnDefinition } from './ViewSelector';
+export { TableViewSharingPanel, type TableViewShareRecipient } from './TableViewSharingPanel';
 export { AclPicker } from './AclPicker';
 export { cn, styles } from './utils';
 //# sourceMappingURL=index.d.ts.map

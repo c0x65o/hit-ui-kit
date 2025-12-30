@@ -238,6 +238,27 @@ export interface BreadcrumbProps {
     showHome?: boolean;
     homeHref?: string;
 }
+export interface AutocompleteOption {
+    value: string;
+    label: string;
+    description?: string;
+    disabled?: boolean;
+}
+export interface AutocompleteProps {
+    label?: string;
+    placeholder?: string;
+    value: string;
+    onChange: (value: string) => void;
+    disabled?: boolean;
+    minQueryLength?: number;
+    debounceMs?: number;
+    limit?: number;
+    onSearch: (query: string, limit: number) => Promise<AutocompleteOption[]>;
+    resolveValue?: (value: string) => Promise<AutocompleteOption | null>;
+    emptyMessage?: string;
+    searchingMessage?: string;
+    clearable?: boolean;
+}
 export interface HelpProps {
     content: React.ReactNode;
     title?: string;
@@ -254,6 +275,7 @@ export interface UiKit {
     TextArea: React.ComponentType<TextAreaProps>;
     Select: React.ComponentType<SelectProps>;
     Checkbox: React.ComponentType<CheckboxProps>;
+    Autocomplete: React.ComponentType<AutocompleteProps>;
     Table: React.ComponentType<TableProps>;
     DataTable: React.ComponentType<DataTableProps<any>>;
     Badge: React.ComponentType<BadgeProps>;

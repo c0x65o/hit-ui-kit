@@ -78,6 +78,16 @@ function persistCurrentSelection(tableId: string, view: TableView | null): void 
   setCachedViewId(tableId, view?.id ?? null);
 }
 
+function getSystemDefaultView(fetchedViews: TableView[]): TableView | null {
+  // A "default view" is a system-provided view marked isDefault.
+  // We only want to auto-apply it on the user's true first visit (no cached selection).
+  return (
+    fetchedViews.find((v) => Boolean(v?.isSystem) && Boolean(v?.isDefault)) ||
+    fetchedViews.find((v) => Boolean(v?.isSystem)) ||
+    null
+  );
+}
+
 export interface TableViewFilter {
   id?: string;
   field: string;
@@ -193,7 +203,21 @@ export function useTableView({ tableId, onViewChange }: UseTableViewOptions) {
       // On initial load, restore cached selection or default to "All Items"
       // (We persist "All Items" explicitly so it can be re-selected even once views exist.)
       if (resetToDefault) {
-        const restored = getViewToRestoreFromCache(tableId, fetchedViews);
+        const cachedRaw = getCachedViewId(tableId);
+        // True first visit: nothing cached yet (not even an explicit "All Items" sentinel)
+        const isFirstVisit = cachedRaw === null;
+
+        // If user previously chose "All Items" we must respect it (sentinel),
+        // and if they previously chose a view id we restore it.
+        let restored = getViewToRestoreFromCache(tableId, fetchedViews);
+
+        // Only on true first visit: apply system default view once (if present).
+        // After that, selection is always driven by cached selection.
+        if (isFirstVisit && restored === null) {
+          const systemDefault = getSystemDefaultView(fetchedViews);
+          if (systemDefault) restored = systemDefault;
+        }
+
         if (restored) {
           console.log(`[useTableView ${instanceId.current}] Restoring cached view: ${restored.name}`);
         } else {

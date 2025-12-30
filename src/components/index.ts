@@ -16,6 +16,7 @@ export { Input } from './Input';
 export { TextArea } from './TextArea';
 export { Select } from './Select';
 export { Checkbox } from './Checkbox';
+export { Autocomplete, type AutocompleteOption, type AutocompleteProps } from './Autocomplete';
 export { FormInput, type FormInputProps } from './FormInput';
 
 // Data Display
@@ -41,6 +42,7 @@ export { Help } from './Help';
 
 // Views
 export { ViewSelector, FILTER_OPERATORS, type ViewColumnDefinition } from './ViewSelector';
+export { TableViewSharingPanel, type TableViewShareRecipient } from './TableViewSharingPanel';
 
 // ACL
 export { AclPicker } from './AclPicker';

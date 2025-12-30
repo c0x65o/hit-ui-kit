@@ -14,6 +14,7 @@ export { Input } from './Input';
 export { TextArea } from './TextArea';
 export { Select } from './Select';
 export { Checkbox } from './Checkbox';
+export { Autocomplete } from './Autocomplete';
 export { FormInput } from './FormInput';
 // Data Display
 export { Table } from './Table';
@@ -34,6 +35,7 @@ export { Breadcrumb } from './Breadcrumb';
 export { Help } from './Help';
 // Views
 export { ViewSelector, FILTER_OPERATORS } from './ViewSelector';
+export { TableViewSharingPanel } from './TableViewSharingPanel';
 // ACL
 export { AclPicker } from './AclPicker';
 // Utilities

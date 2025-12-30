@@ -87,6 +87,7 @@ export function createKit(partial) {
         TextArea: partial.TextArea ?? notImplemented('TextArea'),
         Select: partial.Select ?? notImplemented('Select'),
         Checkbox: partial.Checkbox ?? notImplemented('Checkbox'),
+        Autocomplete: partial.Autocomplete ?? notImplemented('Autocomplete'),
         Table: partial.Table ?? notImplemented('Table'),
         DataTable: partial.DataTable ?? notImplemented('DataTable'),
         Badge: partial.Badge ?? notImplemented('Badge'),
@@ -112,13 +113,13 @@ export { defaultKit } from './kit';
 export { useAlertDialog } from './hooks/useAlertDialog';
 export { useTableView } from './hooks/useTableView';
 // Components (for direct imports)
-export { Page, Card, Button, Input, TextArea, Select, Checkbox, Table, DataTable, Badge, Avatar, Alert, Modal, AlertDialog, Spinner, EmptyState, Tabs, Dropdown, Breadcrumb, Help, 
+export { Page, Card, Button, Input, TextArea, Select, Checkbox, Autocomplete, Table, DataTable, Badge, Avatar, Alert, Modal, AlertDialog, Spinner, EmptyState, Tabs, Dropdown, Breadcrumb, Help, 
 // Auth-specific
 AuthLayout, AuthCard, FormInput, 
 // ACL
 AclPicker, 
 // Views
-ViewSelector, FILTER_OPERATORS, 
+ViewSelector, FILTER_OPERATORS, TableViewSharingPanel, 
 // Utils
 cn, styles, } from './components';
 //# sourceMappingURL=index.js.map

@@ -73,6 +73,7 @@ export function createKit(partial: Partial<UiKit>): UiKit {
     TextArea: partial.TextArea ?? notImplemented('TextArea'),
     Select: partial.Select ?? notImplemented('Select'),
     Checkbox: partial.Checkbox ?? notImplemented('Checkbox'),
+    Autocomplete: partial.Autocomplete ?? notImplemented('Autocomplete'),
     Table: partial.Table ?? notImplemented('Table'),
     DataTable: partial.DataTable ?? notImplemented('DataTable'),
     Badge: partial.Badge ?? notImplemented('Badge'),

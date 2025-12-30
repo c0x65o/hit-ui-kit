@@ -6,6 +6,7 @@ import { Input } from './components/Input';
 import { TextArea } from './components/TextArea';
 import { Select } from './components/Select';
 import { Checkbox } from './components/Checkbox';
+import { Autocomplete } from './components/Autocomplete';
 import { Table } from './components/Table';
 import { DataTable } from './components/DataTable';
 import { Badge } from './components/Badge';
@@ -45,6 +46,7 @@ export const defaultKit = {
     TextArea,
     Select,
     Checkbox,
+    Autocomplete,
     Table,
     DataTable,
     Badge,

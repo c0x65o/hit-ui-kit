@@ -106,6 +106,7 @@ export function createKit(partial: Partial<UiKit>): UiKit {
     TextArea: partial.TextArea ?? notImplemented('TextArea'),
     Select: partial.Select ?? notImplemented('Select'),
     Checkbox: partial.Checkbox ?? notImplemented('Checkbox'),
+    Autocomplete: partial.Autocomplete ?? notImplemented('Autocomplete'),
     Table: partial.Table ?? notImplemented('Table'),
     DataTable: partial.DataTable ?? notImplemented('DataTable'),
     Badge: partial.Badge ?? notImplemented('Badge'),
@@ -137,6 +138,8 @@ export type {
   SelectProps,
   SelectOption,
   CheckboxProps,
+  AutocompleteProps,
+  AutocompleteOption,
   TableProps,
   TableColumn,
   BadgeProps,
@@ -185,7 +188,7 @@ export { defaultKit } from './kit';
 // Hooks
 export { useAlertDialog } from './hooks/useAlertDialog';
 export type { AlertDialogOptions, AlertDialogState } from './hooks/useAlertDialog';
-export { useTableView, type TableView, type TableViewFilter } from './hooks/useTableView';
+export { useTableView, type TableView, type TableViewFilter, type TableViewShare } from './hooks/useTableView';
 
 // Components (for direct imports)
 export {
@@ -196,6 +199,7 @@ export {
   TextArea,
   Select,
   Checkbox,
+  Autocomplete,
   Table,
   DataTable,
   Badge,
@@ -219,6 +223,8 @@ export {
   ViewSelector,
   FILTER_OPERATORS,
   type ViewColumnDefinition,
+  TableViewSharingPanel,
+  type TableViewShareRecipient,
   // Utils
   cn,
   styles,

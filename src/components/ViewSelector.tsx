@@ -11,6 +11,7 @@ import { AlertDialog } from './AlertDialog.js';
 import { Input } from './Input.js';
 import { Select } from './Select.js';
 import { Checkbox } from './Checkbox.js';
+import { TableViewSharingPanel, type TableViewShareRecipient } from './TableViewSharingPanel.js';
 import { styles } from './utils.js';
 
 /**
@@ -87,6 +88,20 @@ export function ViewSelector({ tableId, onViewChange, onReady, availableColumns 
     onViewChange,
   });
   const alertDialog = useAlertDialog();
+
+  // Whether to show system/default views in the dropdown.
+  // Idea: default/system views are only useful as a first-visit bootstrap.
+  // After the first visit (i.e. once the user has any cached selection), we hide them
+  // unless a system view is currently selected (so you can still see what you're on).
+  const [hasCachedSelection, setHasCachedSelection] = useState<boolean>(false);
+  useEffect(() => {
+    try {
+      const cached = localStorage.getItem(`hit:table-view:${tableId}`);
+      setHasCachedSelection(cached !== null);
+    } catch {
+      setHasCachedSelection(false);
+    }
+  }, [tableId]);
   
   // Notify parent when view system is ready
   useEffect(() => {
@@ -112,15 +127,15 @@ export function ViewSelector({ tableId, onViewChange, onReady, availableColumns 
   // Share state
   const [shares, setShares] = useState<TableViewShare[]>([]);
   const [sharesLoading, setSharesLoading] = useState(false);
-  const [shareEmail, setShareEmail] = useState('');
-  const [shareError, setShareError] = useState<string | null>(null);
   // When creating a new view (no id yet), queue up share recipients and apply after creation
-  const [pendingShareEmails, setPendingShareEmails] = useState<string[]>([]);
+  const [pendingShareRecipients, setPendingShareRecipients] = useState<TableViewShareRecipient[]>([]);
 
   // Categorize views
   const systemViews = views.filter((v) => v._category === 'system' || v.isSystem);
   const customViews = views.filter((v) => v._category === 'user' || (!v.isSystem && v._category !== 'shared'));
   const sharedViews = views.filter((v) => v._category === 'shared');
+
+  const showSystemViews = Boolean(currentView?.isSystem) || !hasCachedSelection;
 
   // Human label for "All <table>" (derived from tableId)
   const tableLabel = String(tableId)
@@ -159,11 +174,9 @@ export function ViewSelector({ tableId, onViewChange, onReady, availableColumns 
         setBuilderGroupByField('');
         setBuilderSorting([]);
         setShares([]);
-        setPendingShareEmails([]);
+        setPendingShareRecipients([]);
       }
       setActiveTab('filters');
-      setShareEmail('');
-      setShareError(null);
     }
   }, [showBuilder, editingView, getShares]);
 
@@ -306,13 +319,13 @@ export function ViewSelector({ tableId, onViewChange, onReady, availableColumns 
       } else {
         const newView = await createView(viewData);
         // Apply any queued shares now that we have a view id
-        if (pendingShareEmails.length > 0) {
+        if (pendingShareRecipients.length > 0) {
           const failures: string[] = [];
-          for (const email of pendingShareEmails) {
+          for (const recipient of pendingShareRecipients) {
             try {
-              await addShare(newView.id, 'user', email);
+              await addShare(newView.id, recipient.principalType, recipient.principalId);
             } catch (err: any) {
-              failures.push(`${email}${err?.message ? ` (${err.message})` : ''}`);
+              failures.push(`${recipient.principalId}${err?.message ? ` (${err.message})` : ''}`);
             }
           }
           if (failures.length > 0) {
@@ -589,7 +602,7 @@ export function ViewSelector({ tableId, onViewChange, onReady, availableColumns 
             )}
             
             {/* System/Default Views */}
-            {systemViews.length > 0 && (
+            {showSystemViews && systemViews.length > 0 && (
               <>
                 <div style={dropdownStyles.sectionHeader}>Default Views</div>
                 {systemViews.map((view) => (
@@ -944,7 +957,7 @@ export function ViewSelector({ tableId, onViewChange, onReady, availableColumns 
                 >
                   <Share2 size={14} />
                   Sharing
-                  {((editingView ? shares.length : pendingShareEmails.length) > 0) && (
+                  {((editingView ? shares.length : pendingShareRecipients.length) > 0) && (
                     <span style={styles({
                       backgroundColor: colors.success?.default || '#22c55e',
                       color: '#fff',
@@ -953,7 +966,7 @@ export function ViewSelector({ tableId, onViewChange, onReady, availableColumns 
                       borderRadius: radius.full,
                       fontWeight: '600',
                     })}>
-                      {editingView ? shares.length : pendingShareEmails.length}
+                      {editingView ? shares.length : pendingShareRecipients.length}
                     </span>
                   )}
                 </button>
@@ -1268,163 +1281,16 @@ export function ViewSelector({ tableId, onViewChange, onReady, availableColumns 
 
             {/* Sharing Tab */}
             {activeTab === 'sharing' && (
-              <div style={styles({ display: 'flex', flexDirection: 'column', gap: spacing.md })}>
-                <p style={styles({ fontSize: ts.bodySmall.fontSize, color: colors.text.muted, margin: 0 })}>
-                  Share this view with other users. They will see it in their "Shared with me" section.
-                </p>
-
-                {/* Add share form */}
-                <div style={styles({
-                  display: 'flex',
-                  gap: spacing.sm,
-                  alignItems: 'flex-end',
-                })}>
-                  <div style={{ flex: 1 }}>
-                    <Input
-                      label="Share with user (email)"
-                      value={shareEmail}
-                      onChange={(val) => {
-                        setShareEmail(val);
-                        setShareError(null);
-                      }}
-                      placeholder="user@example.com"
-                    />
-                  </div>
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    disabled={!shareEmail.trim()}
-                    onClick={async () => {
-                      const email = shareEmail.trim();
-                      if (!email) return;
-                      try {
-                        setShareError(null);
-                        if (editingView) {
-                          const newShare = await addShare(editingView.id, 'user', email);
-                          setShares((prev) => [...prev, newShare]);
-                        } else {
-                          // Queue share until after view is created
-                          setPendingShareEmails((prev) => {
-                            const next = new Set(prev);
-                            next.add(email);
-                            return Array.from(next);
-                          });
-                        }
-                        setShareEmail('');
-                      } catch (err: any) {
-                        setShareError(err?.message || 'Failed to share');
-                      }
-                    }}
-                  >
-                    <Plus size={14} style={{ marginRight: spacing.xs }} />
-                    Share
-                  </Button>
-                </div>
-
-                {shareError && (
-                  <div style={styles({
-                    padding: spacing.sm,
-                    backgroundColor: '#fef2f2',
-                    color: colors.error?.default || '#ef4444',
-                    borderRadius: radius.md,
-                    fontSize: ts.bodySmall.fontSize,
-                  })}>
-                    {shareError}
-                  </div>
-                )}
-
-                {/* Current shares list */}
-                {editingView && sharesLoading ? (
-                  <div style={styles({
-                    padding: spacing.xl,
-                    textAlign: 'center',
-                    color: colors.text.muted,
-                  })}>
-                    Loading shares...
-                  </div>
-                ) : (editingView ? shares.length : pendingShareEmails.length) === 0 ? (
-                  <div style={styles({
-                    padding: spacing.xl,
-                    textAlign: 'center',
-                    color: colors.text.muted,
-                    fontSize: ts.body.fontSize,
-                    border: `1px dashed ${colors.border.subtle}`,
-                    borderRadius: radius.md,
-                  })}>
-                    {editingView ? 'This view is not shared with anyone yet.' : 'This view will not be shared with anyone yet.'}
-                  </div>
-                ) : (
-                  <div style={styles({ display: 'flex', flexDirection: 'column', gap: spacing.sm })}>
-                    <div style={styles({
-                      fontSize: ts.bodySmall.fontSize,
-                      fontWeight: ts.label.fontWeight,
-                      color: colors.text.secondary,
-                    })}>
-                      Shared with {(editingView ? shares.length : pendingShareEmails.length)} {(editingView ? shares.length : pendingShareEmails.length) === 1 ? 'user' : 'people'}
-                    </div>
-                    {(editingView ? shares.map((share) => ({
-                      id: share.id,
-                      principalType: share.principalType,
-                      principalId: share.principalId,
-                      removable: true,
-                    })) : pendingShareEmails.map((email) => ({
-                      id: `pending:${email}`,
-                      principalType: 'user' as const,
-                      principalId: email,
-                      removable: true,
-                    }))).map((item) => (
-                      <div
-                        key={item.id}
-                        style={styles({
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: spacing.sm,
-                          padding: spacing.md,
-                          backgroundColor: colors.bg.elevated,
-                          borderRadius: radius.md,
-                          border: `1px solid ${colors.border.subtle}`,
-                        })}
-                      >
-                        <Users size={16} style={{ color: colors.text.muted }} />
-                        <div style={{ flex: 1 }}>
-                          <div style={styles({ fontSize: ts.body.fontSize, color: colors.text.primary })}>
-                            {item.principalId}
-                          </div>
-                          <div style={styles({ fontSize: '11px', color: colors.text.muted })}>
-                            {item.principalType === 'user' ? 'User' : item.principalType === 'group' ? 'Group' : 'Role'}
-                          </div>
-                        </div>
-                        <button
-                          onClick={async () => {
-                            try {
-                              if (editingView) {
-                                await removeShare(editingView.id, item.principalType, item.principalId);
-                                setShares((prev) => prev.filter((s) => s.id !== item.id));
-                              } else {
-                                setPendingShareEmails((prev) => prev.filter((e) => e !== item.principalId));
-                              }
-                            } catch (err: any) {
-                              setShareError(err?.message || 'Failed to remove share');
-                            }
-                          }}
-                          style={styles({
-                            padding: spacing.xs,
-                            background: 'none',
-                            border: 'none',
-                            cursor: 'pointer',
-                            color: colors.error?.default || '#ef4444',
-                            display: 'flex',
-                            alignItems: 'center',
-                          })}
-                          title="Remove share"
-                        >
-                          <X size={16} />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+              <TableViewSharingPanel
+                viewId={editingView?.id || null}
+                shares={shares}
+                setShares={setShares}
+                sharesLoading={sharesLoading}
+                pendingRecipients={pendingShareRecipients}
+                setPendingRecipients={setPendingShareRecipients}
+                addShare={addShare}
+                removeShare={removeShare}
+              />
             )}
 
             {/* Actions */}
