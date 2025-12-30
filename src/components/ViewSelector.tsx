@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { ChevronDown, Plus, Edit2, Trash2, Star, Filter, Trash, Eye, EyeOff, Columns, Layers, Share2, Users, X, ArrowUpDown } from 'lucide-react';
+import { ChevronDown, Plus, Edit2, Trash2, Star, Filter, Trash, Eye, EyeOff, Columns, Layers, Share2, Users, X, ArrowUpDown, Check } from 'lucide-react';
 import { useTableView, type TableView, type TableViewFilter, type TableViewShare } from '../hooks/useTableView';
 import { useThemeTokens } from '../theme/index.js';
 import { useAlertDialog } from '../hooks/useAlertDialog.js';
@@ -569,6 +569,7 @@ export function ViewSelector({ tableId, onViewChange, onReady, availableColumns 
                 e.currentTarget.style.backgroundColor = currentView === null ? colors.bg.elevated : 'transparent';
               }}
             >
+              {currentView === null && <Check size={14} style={{ color: colors.primary.default }} />}
               <span style={{ flex: 1 }}>{allLabel}</span>
             </button>
 
@@ -589,34 +590,44 @@ export function ViewSelector({ tableId, onViewChange, onReady, availableColumns 
             {systemViews.length > 0 && (
               <>
                 <div style={dropdownStyles.sectionHeader}>Default Views</div>
-                {systemViews.map((view) => (
-                  <button
-                    key={view.id}
-                    onClick={() => {
-                      selectView(view);
-                      setDropdownOpen(false);
-                    }}
-                    style={styles({
-                      ...dropdownStyles.viewItem,
-                      backgroundColor: currentView?.id === view.id ? colors.bg.elevated : 'transparent',
-                    })}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = colors.bg.elevated;
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor =
-                        currentView?.id === view.id ? colors.bg.elevated : 'transparent';
-                    }}
-                  >
-                    {view.isDefault && <Star size={14} style={{ color: colors.primary.default }} />}
-                    <span style={{ flex: 1 }}>{view.name}</span>
-                    {view.filters?.length > 0 && (
-                      <span style={styles({ fontSize: ts.bodySmall.fontSize, color: colors.text.muted })}>
-                        {view.filters.length} filter{view.filters.length !== 1 ? 's' : ''}
-                      </span>
-                    )}
-                  </button>
-                ))}
+                {systemViews.map((view) => {
+                  const isSelected = currentView?.id === view.id;
+                  return (
+                    <button
+                      key={view.id}
+                      onClick={() => {
+                        selectView(view);
+                        setDropdownOpen(false);
+                      }}
+                      style={styles({
+                        ...dropdownStyles.viewItem,
+                        backgroundColor: isSelected ? colors.bg.elevated : 'transparent',
+                        fontWeight: isSelected ? ts.label.fontWeight : 'normal',
+                      })}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = colors.bg.elevated;
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor =
+                          isSelected ? colors.bg.elevated : 'transparent';
+                      }}
+                    >
+                      {isSelected ? (
+                        <Check size={14} style={{ color: colors.primary.default }} />
+                      ) : view.isDefault ? (
+                        <Star size={14} style={{ color: colors.primary.default }} />
+                      ) : (
+                        <span style={{ width: 14 }} />
+                      )}
+                      <span style={{ flex: 1 }}>{view.name}</span>
+                      {view.filters?.length > 0 && (
+                        <span style={styles({ fontSize: ts.bodySmall.fontSize, color: colors.text.muted })}>
+                          {view.filters.length} filter{view.filters.length !== 1 ? 's' : ''}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
               </>
             )}
 
@@ -629,66 +640,75 @@ export function ViewSelector({ tableId, onViewChange, onReady, availableColumns 
                 })}>
                   My Views
                 </div>
-                {customViews.map((view) => (
-                  <div
-                    key={view.id}
-                    style={styles({
-                      display: 'flex',
-                      alignItems: 'center',
-                      padding: `${spacing.xs} ${spacing.sm} ${spacing.xs} ${spacing.md}`,
-                      backgroundColor: currentView?.id === view.id ? colors.bg.elevated : 'transparent',
-                      transition: 'background-color 150ms ease',
-                    })}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = colors.bg.elevated;
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor =
-                        currentView?.id === view.id ? colors.bg.elevated : 'transparent';
-                    }}
-                  >
-                    <button
-                      onClick={() => {
-                        selectView(view);
-                        setDropdownOpen(false);
-                      }}
+                {customViews.map((view) => {
+                  const isSelected = currentView?.id === view.id;
+                  return (
+                    <div
+                      key={view.id}
                       style={styles({
-                        flex: 1,
                         display: 'flex',
                         alignItems: 'center',
-                        gap: spacing.xs,
-                        padding: `${spacing.xs} 0`,
-                        fontSize: ts.body.fontSize,
-                        textAlign: 'left',
-                        color: colors.text.secondary,
-                        background: 'none',
-                        border: 'none',
-                        cursor: 'pointer',
+                        padding: `${spacing.xs} ${spacing.sm} ${spacing.xs} ${spacing.md}`,
+                        backgroundColor: isSelected ? colors.bg.elevated : 'transparent',
+                        transition: 'background-color 150ms ease',
                       })}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = colors.bg.elevated;
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor =
+                          isSelected ? colors.bg.elevated : 'transparent';
+                      }}
                     >
-                      <span style={{ flex: 1 }}>{view.name}</span>
-                      {view.filters?.length > 0 && (
-                        <span style={styles({ fontSize: ts.bodySmall.fontSize, color: colors.text.muted })}>
-                          {view.filters.length} filter{view.filters.length !== 1 ? 's' : ''}
-                        </span>
+                      {isSelected ? (
+                        <Check size={14} style={{ color: colors.primary.default, marginRight: spacing.xs }} />
+                      ) : (
+                        <span style={{ width: 14, marginRight: spacing.xs }} />
                       )}
-                    </button>
-                    <button
-                      onClick={(e) => handleEdit(view, e)}
-                      style={dropdownStyles.iconButton}
-                      title="Edit view"
-                    >
-                      <Edit2 size={14} />
-                    </button>
-                    <button
-                      onClick={(e) => handleDelete(view, e)}
-                      style={styles({ ...dropdownStyles.iconButton, color: colors.error?.default || '#ef4444' })}
-                      title="Delete view"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                ))}
+                      <button
+                        onClick={() => {
+                          selectView(view);
+                          setDropdownOpen(false);
+                        }}
+                        style={styles({
+                          flex: 1,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: spacing.xs,
+                          padding: `${spacing.xs} 0`,
+                          fontSize: ts.body.fontSize,
+                          fontWeight: isSelected ? ts.label.fontWeight : 'normal',
+                          textAlign: 'left',
+                          color: colors.text.secondary,
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                        })}
+                      >
+                        <span style={{ flex: 1 }}>{view.name}</span>
+                        {view.filters?.length > 0 && (
+                          <span style={styles({ fontSize: ts.bodySmall.fontSize, color: colors.text.muted })}>
+                            {view.filters.length} filter{view.filters.length !== 1 ? 's' : ''}
+                          </span>
+                        )}
+                      </button>
+                      <button
+                        onClick={(e) => handleEdit(view, e)}
+                        style={dropdownStyles.iconButton}
+                        title="Edit view"
+                      >
+                        <Edit2 size={14} />
+                      </button>
+                      <button
+                        onClick={(e) => handleDelete(view, e)}
+                        style={styles({ ...dropdownStyles.iconButton, color: colors.error?.default || '#ef4444' })}
+                        title="Delete view"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  );
+                })}
               </>
             )}
 
@@ -704,44 +724,50 @@ export function ViewSelector({ tableId, onViewChange, onReady, availableColumns 
                     Shared with me
                   </span>
                 </div>
-                {sharedViews.map((view) => (
-                  <button
-                    key={view.id}
-                    onClick={() => {
-                      selectView(view);
-                      setDropdownOpen(false);
-                    }}
-                    style={styles({
-                      ...dropdownStyles.viewItem,
-                      backgroundColor: currentView?.id === view.id ? colors.bg.elevated : 'transparent',
-                      flexDirection: 'column',
-                      alignItems: 'flex-start',
-                      gap: spacing.xs,
-                    })}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = colors.bg.elevated;
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor =
-                        currentView?.id === view.id ? colors.bg.elevated : 'transparent';
-                    }}
-                  >
-                    <span style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, width: '100%' }}>
-                      <span style={{ flex: 1 }}>{view.name}</span>
-                      {view.filters?.length > 0 && (
-                        <span style={styles({ fontSize: ts.bodySmall.fontSize, color: colors.text.muted })}>
-                          {view.filters.length} filter{view.filters.length !== 1 ? 's' : ''}
-                        </span>
-                      )}
-                    </span>
-                    <span style={styles({
-                      fontSize: '11px',
-                      color: colors.text.muted,
-                    })}>
-                      Shared by {view._sharedByName || view._sharedBy || 'someone'}
-                    </span>
-                  </button>
-                ))}
+                {sharedViews.map((view) => {
+                  const isSelected = currentView?.id === view.id;
+                  return (
+                    <button
+                      key={view.id}
+                      onClick={() => {
+                        selectView(view);
+                        setDropdownOpen(false);
+                      }}
+                      style={styles({
+                        ...dropdownStyles.viewItem,
+                        backgroundColor: isSelected ? colors.bg.elevated : 'transparent',
+                        fontWeight: isSelected ? ts.label.fontWeight : 'normal',
+                        flexDirection: 'column',
+                        alignItems: 'flex-start',
+                        gap: spacing.xs,
+                      })}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = colors.bg.elevated;
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor =
+                          isSelected ? colors.bg.elevated : 'transparent';
+                      }}
+                    >
+                      <span style={{ display: 'flex', alignItems: 'center', gap: spacing.sm, width: '100%' }}>
+                        {isSelected && <Check size={14} style={{ color: colors.primary.default }} />}
+                        <span style={{ flex: 1 }}>{view.name}</span>
+                        {view.filters?.length > 0 && (
+                          <span style={styles({ fontSize: ts.bodySmall.fontSize, color: colors.text.muted })}>
+                            {view.filters.length} filter{view.filters.length !== 1 ? 's' : ''}
+                          </span>
+                        )}
+                      </span>
+                      <span style={styles({
+                        fontSize: '11px',
+                        color: colors.text.muted,
+                        marginLeft: isSelected ? 22 : 0,
+                      })}>
+                        Shared by {view._sharedByName || view._sharedBy || 'someone'}
+                      </span>
+                    </button>
+                  );
+                })}
               </>
             )}
 
