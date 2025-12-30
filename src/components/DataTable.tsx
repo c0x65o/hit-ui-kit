@@ -45,6 +45,51 @@ type BucketColumnDef = {
   buckets: Array<{ segmentKey: string; bucketLabel: string; sortOrder: number }>;
 };
 
+type MetricColumnDef = {
+  columnKey: string;
+  columnLabel: string;
+  entityKind: string | null;
+  entityIdField: string;
+  metricKey: string;
+  agg: string;
+  window: string | null;
+  format: string | null;
+  decimals: number | null;
+  sortOrder: number;
+};
+
+function formatMetricValue(value: unknown, meta?: MetricColumnDef | null): string {
+  const n = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(n)) return '';
+  const decimals = meta?.decimals;
+  const maxFrac = decimals === null || decimals === undefined ? 2 : Math.max(0, Math.min(12, Math.floor(decimals)));
+  const minFrac = maxFrac;
+
+  const fmt = (meta?.format || '').toLowerCase();
+  if (fmt === 'usd' || fmt === 'currency_usd' || fmt === 'currency') {
+    try {
+      return new Intl.NumberFormat(undefined, {
+        style: 'currency',
+        currency: 'USD',
+        minimumFractionDigits: minFrac,
+        maximumFractionDigits: maxFrac,
+      }).format(n);
+    } catch {
+      // fallback
+      return `$${n.toFixed(maxFrac)}`;
+    }
+  }
+
+  try {
+    return new Intl.NumberFormat(undefined, {
+      minimumFractionDigits: minFrac,
+      maximumFractionDigits: maxFrac,
+    }).format(n);
+  } catch {
+    return String(n);
+  }
+}
+
 /**
  * DataTable Component
  * 
@@ -136,6 +181,13 @@ export function DataTable<TData extends Record<string, unknown>>({
   // Per-row evaluated bucket values for current page: { [columnKey]: { [entityId]: bucketLabel } }
   const [bucketValues, setBucketValues] = useState<Record<string, Record<string, string>>>({});
 
+  // Metric computed columns (discovered via metrics-core, keyed by columnKey)
+  const [metricColumns, setMetricColumns] = useState<Record<string, MetricColumnDef>>({});
+  const [metricColumnsLoaded, setMetricColumnsLoaded] = useState(false);
+
+  // Per-row evaluated metric values for current page: { [columnKey]: { [entityId]: number } }
+  const [metricValues, setMetricValues] = useState<Record<string, Record<string, number>>>({});
+
   // Server-side bucket grouping state (only used when grouping by a bucket column)
   const [bucketGroupLoading, setBucketGroupLoading] = useState(false);
   const [bucketGroupError, setBucketGroupError] = useState<string | null>(null);
@@ -205,6 +257,65 @@ export function DataTable<TData extends Record<string, unknown>>({
     };
   }, [viewsEnabled, tableId]);
 
+  // Discover metric columns for this tableId (best-effort; failures are silent).
+  useEffect(() => {
+    if (!viewsEnabled || !tableId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/metrics/segments/table-metrics?tableId=${encodeURIComponent(tableId)}`, { method: 'GET' });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          if (!cancelled) {
+            setMetricColumns({});
+            setMetricColumnsLoaded(true);
+          }
+          return;
+        }
+        const cols = Array.isArray(json?.data?.columns) ? json.data.columns : [];
+        const next: Record<string, MetricColumnDef> = {};
+        for (const c of cols as any[]) {
+          const columnKey = typeof c?.columnKey === 'string' ? c.columnKey.trim() : '';
+          if (!columnKey) continue;
+          const columnLabel = typeof c?.columnLabel === 'string' && c.columnLabel.trim() ? c.columnLabel.trim() : columnKey;
+          const entityKind = typeof c?.entityKind === 'string' ? c.entityKind.trim() : null;
+          const entityIdField = typeof c?.entityIdField === 'string' && c.entityIdField.trim() ? c.entityIdField.trim() : 'id';
+          const metricKey = typeof c?.metricKey === 'string' ? c.metricKey.trim() : '';
+          if (!metricKey) continue;
+          const agg = typeof c?.agg === 'string' && c.agg.trim() ? c.agg.trim() : 'sum';
+          const window = typeof c?.window === 'string' && c.window.trim() ? c.window.trim() : null;
+          const format = typeof c?.format === 'string' && c.format.trim() ? c.format.trim() : null;
+          const decimals = c?.decimals === null || c?.decimals === undefined ? null : Number(c.decimals);
+          const sortOrder = Number(c?.sortOrder ?? 0) || 0;
+          next[columnKey] = {
+            columnKey,
+            columnLabel,
+            entityKind,
+            entityIdField,
+            metricKey,
+            agg,
+            window,
+            format,
+            decimals: Number.isFinite(decimals as any) ? (decimals as number) : null,
+            sortOrder,
+          };
+        }
+        if (!cancelled) {
+          setMetricColumns(next);
+          setMetricColumnsLoaded(true);
+        }
+      } catch {
+        if (!cancelled) {
+          setMetricColumns({});
+          setMetricColumnsLoaded(true);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [viewsEnabled, tableId]);
+
   // Ensure newly discovered bucket columns default to hidden unless already specified.
   useEffect(() => {
     if (!bucketColumnsLoaded) return;
@@ -222,6 +333,24 @@ export function DataTable<TData extends Record<string, unknown>>({
       return changed ? next : prev;
     });
   }, [bucketColumnsLoaded, bucketColumns]);
+
+  // Ensure newly discovered metric columns default to hidden unless already specified.
+  useEffect(() => {
+    if (!metricColumnsLoaded) return;
+    const keys = Object.keys(metricColumns || {});
+    if (!keys.length) return;
+    setColumnVisibility((prev) => {
+      const next = { ...(prev || {}) } as any;
+      let changed = false;
+      for (const k of keys) {
+        if (next[k] === undefined) {
+          next[k] = false;
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [metricColumnsLoaded, metricColumns]);
 
   // Evaluate bucket labels for visible bucket columns on current page rows (best-effort, non-sorting).
   useEffect(() => {
@@ -278,14 +407,73 @@ export function DataTable<TData extends Record<string, unknown>>({
     };
   }, [tableId, data, bucketColumns, columnVisibility]);
 
+  // Evaluate metric values for visible metric columns on current page rows (best-effort, non-sorting).
+  useEffect(() => {
+    if (!tableId) return;
+    const visibleMetricKeys = Object.keys(metricColumns || {}).filter((k) => (columnVisibility as any)?.[k] === true);
+    if (!visibleMetricKeys.length) return;
+
+    const MAX = 500;
+    const idsByCol: Record<string, string[]> = {};
+    for (const k of visibleMetricKeys) {
+      const meta = metricColumns[k];
+      const idField = meta?.entityIdField || 'id';
+      const ids = (data || [])
+        .map((row: any) => String(row?.[idField] ?? '').trim())
+        .filter(Boolean)
+        .slice(0, MAX);
+      if (ids.length) idsByCol[k] = ids;
+    }
+    const colKeys = Object.keys(idsByCol);
+    if (!colKeys.length) return;
+
+    let cancelled = false;
+    (async () => {
+      for (const colKey of colKeys) {
+        const meta = metricColumns[colKey];
+        const entityKind = meta?.entityKind || '';
+        if (!entityKind) continue;
+        try {
+          const res = await fetch('/api/metrics/segments/table-metrics/evaluate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tableId, columnKey: colKey, entityKind, entityIds: idsByCol[colKey] }),
+          });
+          const json = await res.json().catch(() => ({}));
+          if (!res.ok) continue;
+          const values = json?.data?.values && typeof json.data.values === 'object' ? json.data.values : {};
+          const map: Record<string, number> = {};
+          for (const [id, val] of Object.entries(values)) {
+            const n = typeof val === 'number' ? val : Number(val);
+            if (!Number.isFinite(n)) continue;
+            map[String(id)] = n;
+          }
+          if (!cancelled) {
+            setMetricValues((prev) => ({ ...(prev || {}), [colKey]: map }));
+          }
+        } catch {
+          // ignore
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [tableId, data, metricColumns, columnVisibility]);
+
   const augmentedData = useMemo(() => {
-    const dynKeys = Object.keys(bucketColumns || {});
-    if (!dynKeys.length) return data;
-    const activeCols = Object.keys(bucketValues || {});
-    if (!activeCols.length) return data;
+    const bucketKeys = Object.keys(bucketColumns || {});
+    const metricKeys = Object.keys(metricColumns || {});
+    if (!bucketKeys.length && !metricKeys.length) return data;
+
+    const activeBucketCols = Object.keys(bucketValues || {});
+    const activeMetricCols = Object.keys(metricValues || {});
+    if (!activeBucketCols.length && !activeMetricCols.length) return data;
+
     return (data || []).map((row: any) => {
       const next = { ...(row as any) };
-      for (const colKey of activeCols) {
+      for (const colKey of activeBucketCols) {
         const meta = bucketColumns[colKey];
         const idField = meta?.entityIdField || 'id';
         const id = String((row as any)?.[idField] ?? '').trim();
@@ -293,9 +481,18 @@ export function DataTable<TData extends Record<string, unknown>>({
         const label = bucketValues[colKey]?.[id];
         if (label) next[colKey] = label;
       }
+      for (const colKey of activeMetricCols) {
+        const meta = metricColumns[colKey];
+        const idField = meta?.entityIdField || 'id';
+        const id = String((row as any)?.[idField] ?? '').trim();
+        if (!id) continue;
+        const v = metricValues[colKey]?.[id];
+        if (v === undefined) continue;
+        next[colKey] = v;
+      }
       return next as TData;
     });
-  }, [data, bucketColumns, bucketValues]);
+  }, [data, bucketColumns, bucketValues, metricColumns, metricValues]);
 
   const bucketGroupMeta = groupBy && tableId ? bucketColumns[groupBy.field] : null;
   const isServerBucketGroup = Boolean(groupBy && tableId && bucketGroupMeta && bucketGroupMeta.entityKind);
@@ -453,8 +650,20 @@ export function DataTable<TData extends Record<string, unknown>>({
       enableHiding: true,
     })) as any[];
 
-    return [...base, ...dyn] as any;
-  }, [columns, bucketColumns]);
+    const metricDyn = Object.values(metricColumns || {}).map((c) => ({
+      id: c.columnKey,
+      accessorKey: c.columnKey,
+      header: c.columnLabel || c.columnKey,
+      cell: ({ getValue }: { getValue: () => any }) => {
+        const v = getValue();
+        return formatMetricValue(v, c) as React.ReactNode;
+      },
+      enableSorting: true,
+      enableHiding: true,
+    })) as any[];
+
+    return [...base, ...dyn, ...metricDyn] as any;
+  }, [columns, bucketColumns, metricColumns]);
 
   const table = useReactTable({
     data: augmentedData,
