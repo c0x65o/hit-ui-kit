@@ -151,8 +151,8 @@ export interface DataTableProps<T = Record<string, unknown>> {
     showRefresh?: boolean;
     groupBy?: {
         field: string;
-        sortOrder?: string[];
-        renderLabel?: (groupKey: string) => React.ReactNode;
+        sortOrder?: string[] | ((groupValue: any, groupData: any[]) => number);
+        renderLabel?: (groupValue: any, groupData: any[]) => React.ReactNode;
         defaultCollapsed?: boolean;
     } | null;
     groupPageSize?: number;
