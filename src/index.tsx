@@ -191,6 +191,13 @@ export { defaultKit } from './kit';
 export { useAlertDialog } from './hooks/useAlertDialog';
 export type { AlertDialogOptions, AlertDialogState } from './hooks/useAlertDialog';
 export { useTableView, type TableView, type TableViewFilter, type TableViewShare } from './hooks/useTableView';
+export { useFormSubmit, parseError, parseResponseError } from './hooks/useFormSubmit';
+export type {
+  ParsedFormError,
+  FormSubmitState,
+  FormSubmitActions,
+  UseFormSubmitOptions,
+} from './hooks/useFormSubmit';
 
 // Components (for direct imports)
 export {
