@@ -108,6 +108,18 @@ export interface AclPickerProps {
   
   // Disabled state (e.g., when user doesn't have permission to modify ACLs)
   disabled?: boolean;
+
+  /**
+   * Whether to prompt for confirmation before removing an entry.
+   * Defaults to true.
+   */
+  confirmRemove?: boolean;
+
+  /**
+   * Optional custom confirmation message shown when removing an entry.
+   * If omitted, a default message is used.
+   */
+  confirmRemoveMessage?: string;
   
   // Error state
   error?: string | null;

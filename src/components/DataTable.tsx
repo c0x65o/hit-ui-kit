@@ -202,6 +202,14 @@ export function DataTable<TData extends Record<string, unknown>>({
   // Track if view system is ready (to prevent flash before view is applied)
   const [viewSystemReady, setViewSystemReady] = useState(!viewsEnabled);
 
+  // Persist modifiers whenever the user changes sorting/columns after initial view selection.
+  useEffect(() => {
+    if (!viewsEnabled || !tableId) return;
+    if (!viewSystemReady) return;
+    if (!hasInitializedSelectionRef.current) return;
+    writeModifiers(tableId, currentViewIdRef.current, { sorting, columnVisibility });
+  }, [viewsEnabled, tableId, viewSystemReady, sorting, columnVisibility]);
+
   // For now, we only enforce "no best-effort + auto-show" on projects.
   // Easy to extend later (e.g. CRM) without changing domain feature packs.
   const strictDynamicColumns = tableId === 'projects';
