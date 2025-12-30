@@ -60,6 +60,7 @@ export interface ColorPickerProps {
   error?: string;
   disabled?: boolean;
   required?: boolean;
+  className?: string;
 }
 
 export interface TextAreaProps {
