@@ -151,7 +151,7 @@ export function DataTable<TData extends Record<string, unknown>>({
 }: DataTableProps<TData>) {
   // Auto-enable views if tableId is provided (unless explicitly disabled)
   const viewsEnabled = enableViews !== undefined ? enableViews : !!tableId;
-  const { colors, textStyles: ts, spacing } = useThemeTokens();
+  const { colors, textStyles: ts, spacing, radius } = useThemeTokens();
   
   const [sorting, setSorting] = useState<SortingState>(
     initialSorting?.map((s) => ({ id: s.id, desc: s.desc ?? false })) || []

@@ -89,6 +89,13 @@ export function ViewSelector({ tableId, onViewChange, onReady, availableColumns 
     const systemViews = views.filter((v) => v._category === 'system' || v.isSystem);
     const customViews = views.filter((v) => v._category === 'user' || (!v.isSystem && v._category !== 'shared'));
     const sharedViews = views.filter((v) => v._category === 'shared');
+    // Human label for "All <table>" (derived from tableId)
+    const tableLabel = String(tableId)
+        .split('.')
+        .slice(-1)[0]
+        .replace(/[_-]+/g, ' ')
+        .replace(/\b\w/g, (c) => c.toUpperCase());
+    const allLabel = `All ${tableLabel}`;
     // Get hideable columns (all columns are hideable by default unless specified)
     const hideableColumns = availableColumns.filter((col) => col.hideable !== false);
     // Reset builder when opening
@@ -417,7 +424,7 @@ export function ViewSelector({ tableId, onViewChange, onReady, availableColumns 
             borderRadius: radius.sm,
         }),
     };
-    return (_jsxs("div", { style: { position: 'relative' }, children: [_jsxs(Button, { variant: "secondary", size: "sm", disabled: loading, onClick: () => setDropdownOpen(!dropdownOpen), children: [_jsx(Filter, { size: 14, style: { marginRight: spacing.xs } }), currentView?.name || 'All Items', _jsx(ChevronDown, { size: 14, style: { marginLeft: spacing.xs } })] }), dropdownOpen && (_jsxs(_Fragment, { children: [_jsx("div", { onClick: () => setDropdownOpen(false), style: styles({ position: 'fixed', inset: 0, zIndex: 40 }) }), _jsxs("div", { style: dropdownStyles.container, children: [_jsx("button", { onClick: () => {
+    return (_jsxs("div", { style: { position: 'relative' }, children: [_jsxs(Button, { variant: "secondary", size: "sm", disabled: loading, onClick: () => setDropdownOpen(!dropdownOpen), children: [_jsx(Filter, { size: 14, style: { marginRight: spacing.xs } }), currentView?.name || allLabel, _jsx(ChevronDown, { size: 14, style: { marginLeft: spacing.xs } })] }), dropdownOpen && (_jsxs(_Fragment, { children: [_jsx("div", { onClick: () => setDropdownOpen(false), style: styles({ position: 'fixed', inset: 0, zIndex: 40 }) }), _jsxs("div", { style: dropdownStyles.container, children: [_jsx("button", { onClick: () => {
                                     selectView(null);
                                     setDropdownOpen(false);
                                 }, style: styles({
@@ -428,7 +435,7 @@ export function ViewSelector({ tableId, onViewChange, onReady, availableColumns 
                                     e.currentTarget.style.backgroundColor = colors.bg.elevated;
                                 }, onMouseLeave: (e) => {
                                     e.currentTarget.style.backgroundColor = currentView === null ? colors.bg.elevated : 'transparent';
-                                }, children: _jsx("span", { style: { flex: 1 }, children: "All Items" }) }), views.length === 0 && !loading && (_jsx("div", { style: styles({
+                                }, children: _jsx("span", { style: { flex: 1 }, children: allLabel }) }), views.length === 0 && !loading && (_jsx("div", { style: styles({
                                     padding: spacing.md,
                                     textAlign: 'center',
                                     color: colors.text.muted,

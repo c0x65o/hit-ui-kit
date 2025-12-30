@@ -8,6 +8,38 @@ import { styles } from './utils';
 import { Button } from './Button';
 import { Dropdown } from './Dropdown';
 import { ViewSelector } from './ViewSelector';
+function formatMetricValue(value, meta) {
+    const n = typeof value === 'number' ? value : Number(value);
+    if (!Number.isFinite(n))
+        return '';
+    const decimals = meta?.decimals;
+    const maxFrac = decimals === null || decimals === undefined ? 2 : Math.max(0, Math.min(12, Math.floor(decimals)));
+    const minFrac = maxFrac;
+    const fmt = (meta?.format || '').toLowerCase();
+    if (fmt === 'usd' || fmt === 'currency_usd' || fmt === 'currency') {
+        try {
+            return new Intl.NumberFormat(undefined, {
+                style: 'currency',
+                currency: 'USD',
+                minimumFractionDigits: minFrac,
+                maximumFractionDigits: maxFrac,
+            }).format(n);
+        }
+        catch {
+            // fallback
+            return `$${n.toFixed(maxFrac)}`;
+        }
+    }
+    try {
+        return new Intl.NumberFormat(undefined, {
+            minimumFractionDigits: minFrac,
+            maximumFractionDigits: maxFrac,
+        }).format(n);
+    }
+    catch {
+        return String(n);
+    }
+}
 /**
  * DataTable Component
  *
@@ -43,7 +75,7 @@ groupBy: groupByProp, groupPageSize = 5,
 tableId, enableViews, onViewFiltersChange, onViewFilterModeChange, onViewGroupByChange, onViewSortingChange, onViewChange, }) {
     // Auto-enable views if tableId is provided (unless explicitly disabled)
     const viewsEnabled = enableViews !== undefined ? enableViews : !!tableId;
-    const { colors, textStyles: ts, spacing } = useThemeTokens();
+    const { colors, textStyles: ts, spacing, radius } = useThemeTokens();
     const [sorting, setSorting] = useState(initialSorting?.map((s) => ({ id: s.id, desc: s.desc ?? false })) || []);
     const [columnFilters, setColumnFilters] = useState([]);
     const [columnVisibility, setColumnVisibility] = useState(initialColumnVisibility || {});
@@ -59,6 +91,27 @@ tableId, enableViews, onViewFiltersChange, onViewFilterModeChange, onViewGroupBy
     const [groupPages, setGroupPages] = useState({});
     // Track if view system is ready (to prevent flash before view is applied)
     const [viewSystemReady, setViewSystemReady] = useState(!viewsEnabled);
+    // For now, we only enforce "no best-effort + auto-show" on projects.
+    // Easy to extend later (e.g. CRM) without changing domain feature packs.
+    const strictDynamicColumns = tableId === 'projects';
+    const autoShowDynamicColumns = tableId === 'projects';
+    const [dynamicColumnsError, setDynamicColumnsError] = useState(null);
+    // Segment bucket columns (discovered via metrics-core, keyed by columnKey)
+    const [bucketColumns, setBucketColumns] = useState({});
+    const [bucketColumnsLoaded, setBucketColumnsLoaded] = useState(false);
+    // Per-row evaluated bucket values for current page: { [columnKey]: { [entityId]: bucketLabel } }
+    const [bucketValues, setBucketValues] = useState({});
+    // Metric computed columns (discovered via metrics-core, keyed by columnKey)
+    const [metricColumns, setMetricColumns] = useState({});
+    const [metricColumnsLoaded, setMetricColumnsLoaded] = useState(false);
+    // Per-row evaluated metric values for current page: { [columnKey]: { [entityId]: number } }
+    const [metricValues, setMetricValues] = useState({});
+    // Server-side bucket grouping state (only used when grouping by a bucket column)
+    const [bucketGroupLoading, setBucketGroupLoading] = useState(false);
+    const [bucketGroupError, setBucketGroupError] = useState(null);
+    const [bucketGroupPages, setBucketGroupPages] = useState({});
+    const [bucketGroupBySeg, setBucketGroupBySeg] = useState({});
+    const [bucketGroupOrder, setBucketGroupOrder] = useState([]);
     // Effective groupBy - view setting takes precedence over prop
     const groupBy = viewGroupBy ? {
         field: viewGroupBy.field,
@@ -66,6 +119,417 @@ tableId, enableViews, onViewFiltersChange, onViewFilterModeChange, onViewGroupBy
         renderLabel: groupByProp?.renderLabel,
         defaultCollapsed: groupByProp?.defaultCollapsed,
     } : groupByProp;
+    // Discover bucket columns for this tableId (best-effort; failures are silent).
+    useEffect(() => {
+        if (!viewsEnabled || !tableId)
+            return;
+        let cancelled = false;
+        (async () => {
+            try {
+                if (!cancelled && strictDynamicColumns)
+                    setDynamicColumnsError(null);
+                const res = await fetch(`/api/metrics/segments/table-buckets?tableId=${encodeURIComponent(tableId)}`, { method: 'GET' });
+                const json = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                    if (!cancelled) {
+                        setBucketColumns({});
+                        setBucketColumnsLoaded(true);
+                        if (strictDynamicColumns) {
+                            setDynamicColumnsError((prev) => prev || (json?.error ? String(json.error) : `Failed to load bucket columns (${res.status})`));
+                        }
+                    }
+                    return;
+                }
+                const cols = Array.isArray(json?.data?.columns) ? json.data.columns : [];
+                const next = {};
+                for (const c of cols) {
+                    const columnKey = typeof c?.columnKey === 'string' ? c.columnKey.trim() : '';
+                    if (!columnKey)
+                        continue;
+                    const columnLabel = typeof c?.columnLabel === 'string' && c.columnLabel.trim() ? c.columnLabel.trim() : columnKey;
+                    const entityKind = typeof c?.entityKind === 'string' ? c.entityKind.trim() : null;
+                    const entityIdField = typeof c?.entityIdField === 'string' && c.entityIdField.trim() ? c.entityIdField.trim() : 'id';
+                    const buckets = Array.isArray(c?.buckets) ? c.buckets : [];
+                    next[columnKey] = {
+                        columnKey,
+                        columnLabel,
+                        entityKind,
+                        entityIdField,
+                        buckets: buckets
+                            .map((b) => ({
+                            segmentKey: String(b?.segmentKey || '').trim(),
+                            bucketLabel: String(b?.bucketLabel || '').trim(),
+                            sortOrder: Number(b?.sortOrder ?? 0) || 0,
+                        }))
+                            .filter((b) => b.segmentKey && b.bucketLabel),
+                    };
+                }
+                if (!cancelled) {
+                    setBucketColumns(next);
+                    setBucketColumnsLoaded(true);
+                }
+            }
+            catch {
+                if (!cancelled) {
+                    setBucketColumns({});
+                    setBucketColumnsLoaded(true);
+                    if (strictDynamicColumns)
+                        setDynamicColumnsError((prev) => prev || 'Failed to load bucket columns');
+                }
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [viewsEnabled, tableId]);
+    // Discover metric columns for this tableId (best-effort; failures are silent).
+    useEffect(() => {
+        if (!viewsEnabled || !tableId)
+            return;
+        let cancelled = false;
+        (async () => {
+            try {
+                if (!cancelled && strictDynamicColumns)
+                    setDynamicColumnsError(null);
+                const res = await fetch(`/api/metrics/segments/table-metrics?tableId=${encodeURIComponent(tableId)}`, { method: 'GET' });
+                const json = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                    if (!cancelled) {
+                        setMetricColumns({});
+                        setMetricColumnsLoaded(true);
+                        if (strictDynamicColumns) {
+                            setDynamicColumnsError((prev) => prev || (json?.error ? String(json.error) : `Failed to load metric columns (${res.status})`));
+                        }
+                    }
+                    return;
+                }
+                const cols = Array.isArray(json?.data?.columns) ? json.data.columns : [];
+                const next = {};
+                for (const c of cols) {
+                    const columnKey = typeof c?.columnKey === 'string' ? c.columnKey.trim() : '';
+                    if (!columnKey)
+                        continue;
+                    const columnLabel = typeof c?.columnLabel === 'string' && c.columnLabel.trim() ? c.columnLabel.trim() : columnKey;
+                    const entityKind = typeof c?.entityKind === 'string' ? c.entityKind.trim() : null;
+                    const entityIdField = typeof c?.entityIdField === 'string' && c.entityIdField.trim() ? c.entityIdField.trim() : 'id';
+                    const metricKey = typeof c?.metricKey === 'string' ? c.metricKey.trim() : '';
+                    if (!metricKey)
+                        continue;
+                    const agg = typeof c?.agg === 'string' && c.agg.trim() ? c.agg.trim() : 'sum';
+                    const window = typeof c?.window === 'string' && c.window.trim() ? c.window.trim() : null;
+                    const format = typeof c?.format === 'string' && c.format.trim() ? c.format.trim() : null;
+                    const decimals = c?.decimals === null || c?.decimals === undefined ? null : Number(c.decimals);
+                    const sortOrder = Number(c?.sortOrder ?? 0) || 0;
+                    next[columnKey] = {
+                        columnKey,
+                        columnLabel,
+                        entityKind,
+                        entityIdField,
+                        metricKey,
+                        agg,
+                        window,
+                        format,
+                        decimals: Number.isFinite(decimals) ? decimals : null,
+                        sortOrder,
+                    };
+                }
+                if (!cancelled) {
+                    setMetricColumns(next);
+                    setMetricColumnsLoaded(true);
+                }
+            }
+            catch {
+                if (!cancelled) {
+                    setMetricColumns({});
+                    setMetricColumnsLoaded(true);
+                    if (strictDynamicColumns)
+                        setDynamicColumnsError((prev) => prev || 'Failed to load metric columns');
+                }
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [viewsEnabled, tableId]);
+    // Ensure newly discovered bucket columns default to hidden (or visible for strict tables) unless already specified.
+    useEffect(() => {
+        if (!bucketColumnsLoaded)
+            return;
+        const keys = Object.keys(bucketColumns || {});
+        if (!keys.length)
+            return;
+        setColumnVisibility((prev) => {
+            const next = { ...(prev || {}) };
+            let changed = false;
+            for (const k of keys) {
+                if (next[k] === undefined) {
+                    next[k] = autoShowDynamicColumns ? true : false;
+                    changed = true;
+                }
+            }
+            return changed ? next : prev;
+        });
+    }, [bucketColumnsLoaded, bucketColumns]);
+    // Ensure newly discovered metric columns default to hidden (or visible for strict tables) unless already specified.
+    useEffect(() => {
+        if (!metricColumnsLoaded)
+            return;
+        const keys = Object.keys(metricColumns || {});
+        if (!keys.length)
+            return;
+        setColumnVisibility((prev) => {
+            const next = { ...(prev || {}) };
+            let changed = false;
+            for (const k of keys) {
+                if (next[k] === undefined) {
+                    next[k] = autoShowDynamicColumns ? true : false;
+                    changed = true;
+                }
+            }
+            return changed ? next : prev;
+        });
+    }, [metricColumnsLoaded, metricColumns]);
+    // Evaluate bucket labels for visible bucket columns on current page rows (best-effort, non-sorting).
+    useEffect(() => {
+        if (!tableId)
+            return;
+        const visibleBucketKeys = Object.keys(bucketColumns || {}).filter((k) => columnVisibility?.[k] === true);
+        if (!visibleBucketKeys.length)
+            return;
+        const MAX = 500;
+        const idsByCol = {};
+        for (const k of visibleBucketKeys) {
+            const meta = bucketColumns[k];
+            const idField = meta?.entityIdField || 'id';
+            const ids = (data || [])
+                .map((row) => String(row?.[idField] ?? '').trim())
+                .filter(Boolean)
+                .slice(0, MAX);
+            if (ids.length)
+                idsByCol[k] = ids;
+        }
+        const colKeys = Object.keys(idsByCol);
+        if (!colKeys.length)
+            return;
+        let cancelled = false;
+        (async () => {
+            for (const colKey of colKeys) {
+                const meta = bucketColumns[colKey];
+                const entityKind = meta?.entityKind || '';
+                if (!entityKind)
+                    continue;
+                try {
+                    const res = await fetch('/api/metrics/segments/table-buckets/evaluate', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ tableId, columnKey: colKey, entityKind, entityIds: idsByCol[colKey] }),
+                    });
+                    const json = await res.json().catch(() => ({}));
+                    if (!res.ok)
+                        continue;
+                    const values = json?.data?.values && typeof json.data.values === 'object' ? json.data.values : {};
+                    const map = {};
+                    for (const [id, val] of Object.entries(values)) {
+                        const x = val;
+                        const label = x && typeof x === 'object' && typeof x.bucketLabel === 'string' ? x.bucketLabel : '';
+                        if (label)
+                            map[String(id)] = label;
+                    }
+                    if (!cancelled) {
+                        setBucketValues((prev) => ({ ...(prev || {}), [colKey]: map }));
+                    }
+                }
+                catch {
+                    // ignore
+                }
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [tableId, data, bucketColumns, columnVisibility]);
+    // Evaluate metric values for visible metric columns on current page rows (best-effort, non-sorting).
+    useEffect(() => {
+        if (!tableId)
+            return;
+        const visibleMetricKeys = Object.keys(metricColumns || {}).filter((k) => columnVisibility?.[k] === true);
+        if (!visibleMetricKeys.length)
+            return;
+        const MAX = 500;
+        const idsByCol = {};
+        for (const k of visibleMetricKeys) {
+            const meta = metricColumns[k];
+            const idField = meta?.entityIdField || 'id';
+            const ids = (data || [])
+                .map((row) => String(row?.[idField] ?? '').trim())
+                .filter(Boolean)
+                .slice(0, MAX);
+            if (ids.length)
+                idsByCol[k] = ids;
+        }
+        const colKeys = Object.keys(idsByCol);
+        if (!colKeys.length)
+            return;
+        let cancelled = false;
+        (async () => {
+            for (const colKey of colKeys) {
+                const meta = metricColumns[colKey];
+                const entityKind = meta?.entityKind || '';
+                if (!entityKind)
+                    continue;
+                try {
+                    const res = await fetch('/api/metrics/segments/table-metrics/evaluate', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ tableId, columnKey: colKey, entityKind, entityIds: idsByCol[colKey] }),
+                    });
+                    const json = await res.json().catch(() => ({}));
+                    if (!res.ok)
+                        continue;
+                    const values = json?.data?.values && typeof json.data.values === 'object' ? json.data.values : {};
+                    const map = {};
+                    for (const [id, val] of Object.entries(values)) {
+                        const n = typeof val === 'number' ? val : Number(val);
+                        if (!Number.isFinite(n))
+                            continue;
+                        map[String(id)] = n;
+                    }
+                    if (!cancelled) {
+                        setMetricValues((prev) => ({ ...(prev || {}), [colKey]: map }));
+                    }
+                }
+                catch {
+                    // ignore
+                }
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [tableId, data, metricColumns, columnVisibility]);
+    const augmentedData = useMemo(() => {
+        const bucketKeys = Object.keys(bucketColumns || {});
+        const metricKeys = Object.keys(metricColumns || {});
+        if (!bucketKeys.length && !metricKeys.length)
+            return data;
+        const activeBucketCols = Object.keys(bucketValues || {});
+        const activeMetricCols = Object.keys(metricValues || {});
+        if (!activeBucketCols.length && !activeMetricCols.length)
+            return data;
+        return (data || []).map((row) => {
+            const next = { ...row };
+            for (const colKey of activeBucketCols) {
+                const meta = bucketColumns[colKey];
+                const idField = meta?.entityIdField || 'id';
+                const id = String(row?.[idField] ?? '').trim();
+                if (!id)
+                    continue;
+                const label = bucketValues[colKey]?.[id];
+                if (label)
+                    next[colKey] = label;
+            }
+            for (const colKey of activeMetricCols) {
+                const meta = metricColumns[colKey];
+                const idField = meta?.entityIdField || 'id';
+                const id = String(row?.[idField] ?? '').trim();
+                if (!id)
+                    continue;
+                const v = metricValues[colKey]?.[id];
+                if (v === undefined)
+                    continue;
+                next[colKey] = v;
+            }
+            return next;
+        });
+    }, [data, bucketColumns, bucketValues, metricColumns, metricValues]);
+    const bucketGroupMeta = groupBy && tableId ? bucketColumns[groupBy.field] : null;
+    const isServerBucketGroup = Boolean(groupBy && tableId && bucketGroupMeta && bucketGroupMeta.entityKind);
+    async function fetchBucketGroups(pages) {
+        if (!tableId || !groupBy || !bucketGroupMeta?.entityKind)
+            return;
+        setBucketGroupLoading(true);
+        setBucketGroupError(null);
+        try {
+            const res = await fetch('/api/table-data/grouped-buckets', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    tableId,
+                    columnKey: groupBy.field,
+                    entityKind: bucketGroupMeta.entityKind,
+                    pageSize: groupPageSize,
+                    bucketPages: pages,
+                }),
+            });
+            const json = await res.json().catch(() => ({}));
+            if (!res.ok)
+                throw new Error(json?.error || `grouped-buckets ${res.status}`);
+            const buckets = Array.isArray(json?.data?.buckets) ? json.data.buckets : [];
+            // Merge pages into accumulated rows.
+            setBucketGroupBySeg((prev) => {
+                const next = { ...(prev || {}) };
+                for (const b of buckets) {
+                    const segmentKey = String(b?.segmentKey || '').trim();
+                    if (!segmentKey)
+                        continue;
+                    const bucketLabel = String(b?.bucketLabel || '').trim() || segmentKey;
+                    const sortOrder = Number(b?.sortOrder ?? 0) || 0;
+                    const total = Number(b?.total ?? 0) || 0;
+                    const pageSizeResp = Number(b?.pageSize ?? groupPageSize) || groupPageSize;
+                    const page = Number(b?.page ?? 1) || 1;
+                    const rows = Array.isArray(b?.rows) ? b.rows : [];
+                    const prior = next[segmentKey];
+                    const idField = bucketGroupMeta.entityIdField || 'id';
+                    const normId = (r) => String(r?.[idField] ?? r?.id ?? '').trim();
+                    let mergedRows = rows;
+                    if (page > 1 && prior && Array.isArray(prior.rows)) {
+                        const seen = new Set(prior.rows.map(normId).filter(Boolean));
+                        mergedRows = [...prior.rows];
+                        for (const r of rows) {
+                            const id = normId(r);
+                            if (!id || seen.has(id))
+                                continue;
+                            seen.add(id);
+                            mergedRows.push(r);
+                        }
+                    }
+                    if (page === 1)
+                        mergedRows = rows;
+                    next[segmentKey] = { segmentKey, bucketLabel, sortOrder, total, pageSize: pageSizeResp, rows: mergedRows };
+                }
+                return next;
+            });
+            const order = buckets
+                .map((b) => ({ segmentKey: String(b?.segmentKey || '').trim(), sortOrder: Number(b?.sortOrder ?? 0) || 0, bucketLabel: String(b?.bucketLabel || '').trim() }))
+                .filter((b) => b.segmentKey)
+                .sort((a, b) => (a.sortOrder - b.sortOrder) || a.bucketLabel.localeCompare(b.bucketLabel) || a.segmentKey.localeCompare(b.segmentKey))
+                .map((b) => b.segmentKey);
+            setBucketGroupOrder(order);
+        }
+        catch (e) {
+            setBucketGroupError(String(e?.message || 'Failed to load bucket groups'));
+        }
+        finally {
+            setBucketGroupLoading(false);
+        }
+    }
+    // Load server-side bucket grouping when grouping by a bucket column.
+    useEffect(() => {
+        if (!isServerBucketGroup)
+            return;
+        setBucketGroupBySeg({});
+        setBucketGroupOrder([]);
+        setBucketGroupPages({});
+        fetchBucketGroups({});
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isServerBucketGroup, tableId, groupBy?.field, groupPageSize]);
+    // When a bucket group's page changes, fetch more rows.
+    useEffect(() => {
+        if (!isServerBucketGroup)
+            return;
+        fetchBucketGroups(bucketGroupPages);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [bucketGroupPages]);
     // Use external page if provided (server-side), otherwise use internal state (client-side)
     const [internalPage, setInternalPage] = useState(0);
     const currentPage = manualPagination && externalPage !== undefined ? externalPage - 1 : internalPage;
@@ -84,6 +548,13 @@ tableId, enableViews, onViewFiltersChange, onViewFilterModeChange, onViewGroupBy
     }, [externalPage, manualPagination, pageSize]);
     // Initialize collapsed groups if defaultCollapsed is true
     useEffect(() => {
+        if (groupBy?.defaultCollapsed && isServerBucketGroup) {
+            const keys = bucketGroupOrder.length ? bucketGroupOrder : Object.keys(bucketGroupBySeg || {});
+            if (keys.length > 0) {
+                setCollapsedGroups(new Set(keys));
+            }
+            return;
+        }
         if (groupBy?.defaultCollapsed && data.length > 0) {
             const groups = new Set();
             for (const row of data) {
@@ -93,10 +564,10 @@ tableId, enableViews, onViewFiltersChange, onViewFilterModeChange, onViewGroupBy
             }
             setCollapsedGroups(groups);
         }
-    }, [groupBy?.defaultCollapsed, groupBy?.field, data]);
+    }, [groupBy?.defaultCollapsed, groupBy?.field, data, isServerBucketGroup, bucketGroupOrder, bucketGroupBySeg]);
     // Convert columns to TanStack Table format
     const tableColumns = useMemo(() => {
-        return columns.map((col) => ({
+        const base = columns.map((col) => ({
             id: col.key,
             accessorKey: col.key,
             header: col.label,
@@ -110,9 +581,32 @@ tableId, enableViews, onViewFiltersChange, onViewFilterModeChange, onViewGroupBy
             enableSorting: col.sortable !== false,
             enableHiding: col.hideable !== false,
         }));
-    }, [columns]);
+        const dyn = Object.values(bucketColumns || {}).map((c) => ({
+            id: c.columnKey,
+            accessorKey: c.columnKey,
+            header: c.columnLabel || c.columnKey,
+            cell: ({ getValue }) => {
+                const v = getValue();
+                return (v ? String(v) : '');
+            },
+            enableSorting: false,
+            enableHiding: true,
+        }));
+        const metricDyn = Object.values(metricColumns || {}).map((c) => ({
+            id: c.columnKey,
+            accessorKey: c.columnKey,
+            header: c.columnLabel || c.columnKey,
+            cell: ({ getValue }) => {
+                const v = getValue();
+                return formatMetricValue(v, c);
+            },
+            enableSorting: true,
+            enableHiding: true,
+        }));
+        return [...base, ...dyn, ...metricDyn];
+    }, [columns, bucketColumns, metricColumns]);
     const table = useReactTable({
-        data,
+        data: augmentedData,
         columns: tableColumns,
         state: {
             sorting,
@@ -152,6 +646,41 @@ tableId, enableViews, onViewFiltersChange, onViewFilterModeChange, onViewGroupBy
                 data: row.original,
                 index: row.index,
             }));
+        }
+        // Server-side grouping for bucket columns
+        if (isServerBucketGroup) {
+            const result = [];
+            const order = bucketGroupOrder.length ? bucketGroupOrder : Object.keys(bucketGroupBySeg || {});
+            for (const segmentKey of order) {
+                const g = bucketGroupBySeg?.[segmentKey];
+                if (!g)
+                    continue;
+                const groupKey = segmentKey;
+                const groupValue = g.bucketLabel || segmentKey;
+                const groupData = Array.isArray(g.rows) ? g.rows : [];
+                result.push({ type: 'group', groupValue, groupData, groupKey });
+                const isCollapsed = collapsedGroups.has(groupKey);
+                if (!isCollapsed) {
+                    groupData.forEach((rowData, idx) => {
+                        result.push({ type: 'row', data: rowData, index: idx });
+                    });
+                    const total = Number(g.total || 0) || 0;
+                    const loaded = groupData.length;
+                    if (loaded < total) {
+                        const currentPage = Math.max(1, Number(bucketGroupPages[groupKey] || 1) || 1);
+                        const pageSizeEff = Number(g.pageSize || groupPageSize) || groupPageSize;
+                        const totalPages = Math.max(1, Math.ceil(total / pageSizeEff));
+                        result.push({
+                            type: 'show-more',
+                            groupKey,
+                            remainingCount: Math.max(0, total - loaded),
+                            currentPage,
+                            totalPages,
+                        });
+                    }
+                }
+            }
+            return result;
         }
         const filteredRows = table.getRowModel().rows;
         // Group by field
@@ -255,7 +784,7 @@ tableId, enableViews, onViewFiltersChange, onViewFilterModeChange, onViewGroupBy
             }
         }
         return result;
-    }, [groupBy, table, collapsedGroups, globalFilter, sorting, pagination, groupPages, groupPageSize]);
+    }, [groupBy, table, collapsedGroups, globalFilter, sorting, pagination, groupPages, groupPageSize, isServerBucketGroup, bucketGroupBySeg, bucketGroupOrder, bucketGroupPages]);
     // Export to CSV
     const handleExport = () => {
         const visibleColumns = table.getVisibleFlatColumns();
@@ -299,18 +828,34 @@ tableId, enableViews, onViewFiltersChange, onViewFilterModeChange, onViewGroupBy
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
         }
-      ` }), _jsxs("div", { style: { display: 'flex', flexDirection: 'column', gap: spacing.lg }, children: [(searchable || exportable || showColumnVisibility || showRefresh || viewsEnabled) && (_jsxs("div", { style: styles({
+      ` }), _jsxs("div", { style: { display: 'flex', flexDirection: 'column', gap: spacing.lg }, children: [dynamicColumnsError && (_jsxs("div", { style: styles({
+                            padding: `${spacing.sm} ${spacing.md}`,
+                            borderRadius: radius.md,
+                            border: `1px solid ${colors.border.subtle}`,
+                            background: colors.bg.muted,
+                            color: colors.text.primary,
+                            fontSize: 13,
+                        }), children: [_jsx("strong", { style: { marginRight: 8 }, children: "Dynamic columns error:" }), dynamicColumnsError] })), (searchable || exportable || showColumnVisibility || showRefresh || viewsEnabled) && (_jsxs("div", { style: styles({
                             display: 'flex',
                             gap: spacing.md,
                             alignItems: 'center',
                             flexWrap: 'wrap',
-                        }), children: [viewsEnabled && tableId && (_jsx(ViewSelector, { tableId: tableId, availableColumns: columns.map((col) => ({
-                                    key: col.key,
-                                    label: col.label,
-                                    type: col.filterType || 'string',
-                                    options: col.filterOptions,
-                                    hideable: col.hideable !== false,
-                                })), onReady: setViewSystemReady, onViewChange: (view) => {
+                        }), children: [viewsEnabled && tableId && (_jsx(ViewSelector, { tableId: tableId, availableColumns: [
+                                    ...columns.map((col) => ({
+                                        key: col.key,
+                                        label: col.label,
+                                        type: col.filterType || 'string',
+                                        options: col.filterOptions,
+                                        hideable: col.hideable !== false,
+                                    })),
+                                    ...Object.values(bucketColumns || {}).map((c) => ({
+                                        key: c.columnKey,
+                                        label: c.columnLabel || c.columnKey,
+                                        type: 'select',
+                                        options: (c.buckets || []).map((b) => ({ value: b.bucketLabel, label: b.bucketLabel, sortOrder: b.sortOrder })),
+                                        hideable: true,
+                                    })),
+                                ], onReady: setViewSystemReady, onViewChange: (view) => {
                                     if (onViewChange) {
                                         onViewChange(view);
                                     }
@@ -439,7 +984,12 @@ tableId, enableViews, onViewFiltersChange, onViewFilterModeChange, onViewGroupBy
                                                                     transform: isCollapsed ? 'rotate(0deg)' : 'rotate(90deg)',
                                                                     transition: 'transform 150ms ease',
                                                                     color: colors.text.muted,
-                                                                } }), _jsx("div", { style: { display: 'flex', alignItems: 'center', gap: spacing.xs, flex: 1 }, children: typeof groupLabel === 'string' ? _jsx("span", { children: groupLabel }) : groupLabel }), _jsxs("span", { style: { color: colors.text.muted, fontSize: ts.bodySmall.fontSize }, children: ["(", item.groupData.length, ")"] })] }) }) }, `group-${item.groupKey}`));
+                                                                } }), _jsx("div", { style: { display: 'flex', alignItems: 'center', gap: spacing.xs, flex: 1 }, children: typeof groupLabel === 'string' ? _jsx("span", { children: groupLabel }) : groupLabel }), _jsx("span", { style: { color: colors.text.muted, fontSize: ts.bodySmall.fontSize }, children: isServerBucketGroup
+                                                                    ? (() => {
+                                                                        const total = Number(bucketGroupBySeg?.[item.groupKey]?.total || 0) || 0;
+                                                                        return `(${item.groupData.length} of ${total || item.groupData.length})`;
+                                                                    })()
+                                                                    : `(${item.groupData.length})` })] }) }) }, `group-${item.groupKey}`));
                                         }
                                         else if (item.type === 'show-more') {
                                             // "Show more" row for per-group pagination
@@ -450,14 +1000,49 @@ tableId, enableViews, onViewFiltersChange, onViewFilterModeChange, onViewGroupBy
                                                         padding: `${spacing.sm} ${spacing.lg}`,
                                                         textAlign: 'center',
                                                     }), children: _jsxs(Button, { variant: "ghost", size: "sm", onClick: () => {
-                                                            setGroupPages((prev) => ({
-                                                                ...prev,
-                                                                [item.groupKey]: (prev[item.groupKey] ?? 0) + 1,
-                                                            }));
+                                                            if (isServerBucketGroup) {
+                                                                setBucketGroupPages((prev) => ({
+                                                                    ...(prev || {}),
+                                                                    [item.groupKey]: (prev?.[item.groupKey] ?? 1) + 1,
+                                                                }));
+                                                            }
+                                                            else {
+                                                                setGroupPages((prev) => ({
+                                                                    ...prev,
+                                                                    [item.groupKey]: (prev[item.groupKey] ?? 0) + 1,
+                                                                }));
+                                                            }
                                                         }, children: [_jsx(ChevronDown, { size: 14, style: { marginRight: spacing.xs } }), "Show ", Math.min(item.remainingCount, groupPageSize), " more (", item.remainingCount, " remaining)"] }) }) }, `show-more-${item.groupKey}`));
                                         }
                                         else {
-                                            // Regular row - find the corresponding table row
+                                            // Regular row
+                                            if (isServerBucketGroup) {
+                                                const rowData = item.data;
+                                                const rowKey = String(rowData?.id || rowData?.key || '') || `row-${idx}`;
+                                                return (_jsx("tr", { onClick: () => onRowClick?.(rowData, idx), style: styles({
+                                                        borderBottom: `1px solid ${colors.border.subtle}`,
+                                                        cursor: onRowClick ? 'pointer' : 'default',
+                                                        transition: 'background-color 150ms ease',
+                                                    }), onMouseEnter: (e) => {
+                                                        if (onRowClick) {
+                                                            e.currentTarget.style.backgroundColor = colors.bg.elevated;
+                                                        }
+                                                    }, onMouseLeave: (e) => {
+                                                        e.currentTarget.style.backgroundColor = 'transparent';
+                                                    }, children: table.getVisibleFlatColumns().map((col) => {
+                                                        const colId = String(col?.id || '');
+                                                        const baseCol = columns.find((c) => c?.key === colId) || null;
+                                                        const value = rowData?.[colId];
+                                                        const content = baseCol?.render ? baseCol.render(value, rowData, idx) : (value == null ? '' : String(value));
+                                                        return (_jsx("td", { style: styles({
+                                                                padding: `${spacing.md} ${spacing.lg}`,
+                                                                textAlign: col.columnDef.meta?.align || 'left',
+                                                                fontSize: ts.body.fontSize,
+                                                                color: colors.text.secondary,
+                                                            }), children: content }, `${rowKey}-${colId}-${idx}`));
+                                                    }) }, `row-${rowKey}-${idx}`));
+                                            }
+                                            // Client row - find the corresponding table row
                                             const tableRow = table.getRowModel().rows.find((r) => {
                                                 // Compare by reference or by ID if available
                                                 return r.original === item.data ||
