@@ -408,10 +408,15 @@ export function DataTable<TData extends Record<string, unknown>>({
   useEffect(() => {
     if (!tableId) return;
     const visibleBucketKeys = Object.keys(bucketColumns || {}).filter((k) => (columnVisibility as any)?.[k] === true);
+    // Ensure we evaluate the groupBy bucket column even when it's hidden so client-side grouping can still work.
+    const groupField = groupBy?.field;
+    if (groupField && (bucketColumns as any)?.[groupField] && !visibleBucketKeys.includes(groupField)) {
+      visibleBucketKeys.push(groupField);
+    }
     if (!visibleBucketKeys.length) return;
 
     const bucketGroupMetaLocal = groupBy && tableId ? bucketColumns[groupBy.field] : null;
-    const isServerBucketGroupLocal = Boolean(groupBy && tableId && bucketGroupMetaLocal && bucketGroupMetaLocal.entityKind);
+    const isServerBucketGroupLocal = Boolean(groupBy && tableId && bucketGroupMetaLocal && bucketGroupMetaLocal.entityKind && !bucketGroupError);
     const serverRows = isServerBucketGroupLocal
       ? Object.values((bucketGroupBySeg as any) || {}).flatMap((g: any) => (Array.isArray(g?.rows) ? g.rows : []))
       : [];
@@ -464,7 +469,7 @@ export function DataTable<TData extends Record<string, unknown>>({
     return () => {
       cancelled = true;
     };
-  }, [tableId, data, bucketColumns, columnVisibility, groupBy?.field, bucketGroupBySeg]);
+  }, [tableId, data, bucketColumns, columnVisibility, groupBy?.field, bucketGroupBySeg, bucketGroupError]);
 
   // Evaluate metric values for visible metric columns on current page rows (best-effort, non-sorting).
   useEffect(() => {
@@ -473,7 +478,7 @@ export function DataTable<TData extends Record<string, unknown>>({
     if (!visibleMetricKeys.length) return;
 
     const bucketGroupMetaLocal = groupBy && tableId ? bucketColumns[groupBy.field] : null;
-    const isServerBucketGroupLocal = Boolean(groupBy && tableId && bucketGroupMetaLocal && bucketGroupMetaLocal.entityKind);
+    const isServerBucketGroupLocal = Boolean(groupBy && tableId && bucketGroupMetaLocal && bucketGroupMetaLocal.entityKind && !bucketGroupError);
     const serverRows = isServerBucketGroupLocal
       ? Object.values((bucketGroupBySeg as any) || {}).flatMap((g: any) => (Array.isArray(g?.rows) ? g.rows : []))
       : [];
@@ -526,7 +531,7 @@ export function DataTable<TData extends Record<string, unknown>>({
     return () => {
       cancelled = true;
     };
-  }, [tableId, data, metricColumns, columnVisibility, groupBy?.field, bucketColumns, bucketGroupBySeg]);
+  }, [tableId, data, metricColumns, columnVisibility, groupBy?.field, bucketColumns, bucketGroupBySeg, bucketGroupError]);
 
   const augmentedData = useMemo(() => {
     const bucketKeys = Object.keys(bucketColumns || {});
@@ -562,6 +567,9 @@ export function DataTable<TData extends Record<string, unknown>>({
 
   const bucketGroupMeta = groupBy && tableId ? bucketColumns[groupBy.field] : null;
   const isServerBucketGroup = Boolean(groupBy && tableId && bucketGroupMeta && bucketGroupMeta.entityKind);
+  // If server-side bucket grouping fails (common for non-admin users), fall back to client-side rows
+  // rather than rendering an empty table.
+  const isServerBucketGroupActive = isServerBucketGroup && !bucketGroupError;
 
   async function fetchBucketGroups(pages: Record<string, number>) {
     if (!tableId || !groupBy || !bucketGroupMeta?.entityKind) return;
@@ -669,7 +677,7 @@ export function DataTable<TData extends Record<string, unknown>>({
 
   // Initialize collapsed groups if defaultCollapsed is true
   useEffect(() => {
-    if (groupBy?.defaultCollapsed && isServerBucketGroup) {
+    if (groupBy?.defaultCollapsed && isServerBucketGroupActive) {
       const keys = bucketGroupOrder.length ? bucketGroupOrder : Object.keys(bucketGroupBySeg || {});
       if (keys.length > 0) {
         setCollapsedGroups(new Set(keys));
@@ -685,7 +693,7 @@ export function DataTable<TData extends Record<string, unknown>>({
       }
       setCollapsedGroups(groups);
     }
-  }, [groupBy?.defaultCollapsed, groupBy?.field, data, isServerBucketGroup, bucketGroupOrder, bucketGroupBySeg]);
+  }, [groupBy?.defaultCollapsed, groupBy?.field, data, isServerBucketGroupActive, bucketGroupOrder, bucketGroupBySeg]);
 
   // Convert columns to TanStack Table format
   const tableColumns = useMemo<ColumnDef<TData>[]>(() => {
@@ -782,7 +790,7 @@ export function DataTable<TData extends Record<string, unknown>>({
     }
 
     // Server-side grouping for bucket columns
-    if (isServerBucketGroup) {
+    if (isServerBucketGroupActive) {
       const result: GroupedRow[] = [];
       const order = bucketGroupOrder.length ? bucketGroupOrder : Object.keys(bucketGroupBySeg || {});
       for (const segmentKey of order) {
@@ -926,7 +934,7 @@ export function DataTable<TData extends Record<string, unknown>>({
     }
 
     return result;
-  }, [groupBy, table, collapsedGroups, globalFilter, sorting, pagination, groupPages, groupPageSize, isServerBucketGroup, bucketGroupBySeg, bucketGroupOrder, bucketGroupPages]);
+  }, [groupBy, table, collapsedGroups, globalFilter, sorting, pagination, groupPages, groupPageSize, isServerBucketGroupActive, bucketGroupBySeg, bucketGroupOrder, bucketGroupPages]);
 
   // Export to CSV
   const handleExport = () => {
