@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
 import type { ReactNode } from 'react';
 
 // =============================================================================
@@ -70,42 +70,166 @@ export interface ErrorLogActions {
 }
 
 // =============================================================================
-// CONTEXT (using global to handle monorepo module duplication)
+// GLOBAL STORE (bypasses React Context for cross-module compatibility)
 // =============================================================================
 
-// Use a key on window to ensure we have a single shared context instance
-// This handles the case where multiple copies of this module exist in monorepos
-const CONTEXT_KEY = '__HIT_ERROR_LOG_CONTEXT__';
-
-// SSR fallback context - only used during server-side rendering
-let ssrFallbackContext: React.Context<(ErrorLogState & ErrorLogActions) | null> | null = null;
-
-/**
- * Get the shared context at runtime (not module load time).
- * This ensures all module copies use the same context instance.
- */
-function getSharedContext(): React.Context<(ErrorLogState & ErrorLogActions) | null> {
-  if (typeof window !== 'undefined') {
-    const win = window as unknown as Record<string, unknown>;
-    if (!win[CONTEXT_KEY]) {
-      win[CONTEXT_KEY] = createContext<(ErrorLogState & ErrorLogActions) | null>(null);
-    }
-    return win[CONTEXT_KEY] as React.Context<(ErrorLogState & ErrorLogActions) | null>;
-  }
-  // SSR fallback - create once per SSR request
-  if (!ssrFallbackContext) {
-    ssrFallbackContext = createContext<(ErrorLogState & ErrorLogActions) | null>(null);
-  }
-  return ssrFallbackContext;
-}
-
-// =============================================================================
-// STORAGE KEYS
-// =============================================================================
-
+const STORE_KEY = '__HIT_ERROR_LOG_STORE__';
 const STORAGE_KEY = 'hit_error_log';
 const ENABLED_KEY = 'hit_error_log_enabled';
 const MAX_ENTRIES = 500;
+
+interface ErrorLogStore {
+  errors: ErrorLogEntry[];
+  enabled: boolean;
+  listeners: Set<() => void>;
+  isProviderMounted: boolean;
+}
+
+function getStore(): ErrorLogStore {
+  if (typeof window === 'undefined') {
+    // SSR: return empty store
+    return {
+      errors: [],
+      enabled: true,
+      listeners: new Set(),
+      isProviderMounted: false,
+    };
+  }
+
+  const win = window as unknown as Record<string, unknown>;
+  if (!win[STORE_KEY]) {
+    // Initialize store with data from sessionStorage
+    let errors: ErrorLogEntry[] = [];
+    let enabled = true;
+
+    try {
+      const stored = sessionStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        errors = parsed.map((e: ErrorLogEntry) => ({
+          ...e,
+          timestamp: new Date(e.timestamp),
+        }));
+      }
+      const enabledStored = sessionStorage.getItem(ENABLED_KEY);
+      if (enabledStored !== null) {
+        enabled = enabledStored === 'true';
+      }
+    } catch {
+      // Ignore storage errors
+    }
+
+    win[STORE_KEY] = {
+      errors,
+      enabled,
+      listeners: new Set<() => void>(),
+      isProviderMounted: false,
+    };
+  }
+
+  return win[STORE_KEY] as ErrorLogStore;
+}
+
+function notifyListeners() {
+  const store = getStore();
+  store.listeners.forEach((listener) => listener());
+}
+
+function subscribe(listener: () => void): () => void {
+  const store = getStore();
+  store.listeners.add(listener);
+  return () => {
+    store.listeners.delete(listener);
+  };
+}
+
+function getSnapshot(): ErrorLogStore {
+  return getStore();
+}
+
+function getServerSnapshot(): ErrorLogStore {
+  return {
+    errors: [],
+    enabled: true,
+    listeners: new Set(),
+    isProviderMounted: false,
+  };
+}
+
+// =============================================================================
+// STORE ACTIONS
+// =============================================================================
+
+function generateId(): string {
+  return `err_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function storeLogError(entry: Omit<ErrorLogEntry, 'id' | 'timestamp'>): void {
+  const store = getStore();
+  if (!store.enabled) return;
+
+  const newEntry: ErrorLogEntry = {
+    ...entry,
+    id: generateId(),
+    timestamp: new Date(),
+    payload: entry.payload ? truncatePayload(entry.payload) : undefined,
+  };
+
+  store.errors = [newEntry, ...store.errors].slice(0, MAX_ENTRIES);
+
+  // Persist to sessionStorage
+  try {
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(store.errors));
+  } catch {
+    // Ignore
+  }
+
+  notifyListeners();
+}
+
+function storeClearErrors(): void {
+  const store = getStore();
+  store.errors = [];
+  try {
+    sessionStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // Ignore
+  }
+  notifyListeners();
+}
+
+function storeClearError(id: string): void {
+  const store = getStore();
+  store.errors = store.errors.filter((e) => e.id !== id);
+  try {
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(store.errors));
+  } catch {
+    // Ignore
+  }
+  notifyListeners();
+}
+
+function storeSetEnabled(enabled: boolean): void {
+  const store = getStore();
+  store.enabled = enabled;
+  try {
+    sessionStorage.setItem(ENABLED_KEY, String(enabled));
+  } catch {
+    // Ignore
+  }
+  notifyListeners();
+}
+
+function storeExportErrors(): string {
+  const store = getStore();
+  return JSON.stringify(store.errors, null, 2);
+}
+
+function storeSetProviderMounted(mounted: boolean): void {
+  const store = getStore();
+  store.isProviderMounted = mounted;
+  notifyListeners();
+}
 
 // =============================================================================
 // PROVIDER
@@ -124,111 +248,15 @@ const MAX_ENTRIES = 500;
  * ```
  */
 export function ErrorLogProvider({ children }: { children: ReactNode }) {
-  const [errors, setErrors] = useState<ErrorLogEntry[]>([]);
-  const [enabled, setEnabledState] = useState(true);
-  const [mounted, setMounted] = useState(false);
-
-  // Load from sessionStorage on mount
+  // Mark provider as mounted
   useEffect(() => {
-    setMounted(true);
-    try {
-      const stored = sessionStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        // Convert timestamp strings back to Date objects
-        const entries = parsed.map((e: ErrorLogEntry) => ({
-          ...e,
-          timestamp: new Date(e.timestamp),
-        }));
-        setErrors(entries);
-      }
-      const enabledStored = sessionStorage.getItem(ENABLED_KEY);
-      if (enabledStored !== null) {
-        setEnabledState(enabledStored === 'true');
-      }
-    } catch {
-      // Ignore storage errors
-    }
+    storeSetProviderMounted(true);
+    return () => {
+      storeSetProviderMounted(false);
+    };
   }, []);
 
-  // Persist to sessionStorage on change
-  useEffect(() => {
-    if (!mounted) return;
-    try {
-      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(errors));
-    } catch {
-      // Ignore storage errors
-    }
-  }, [errors, mounted]);
-
-  const generateId = useCallback(() => {
-    return `err_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-  }, []);
-
-  const logError = useCallback(
-    (entry: Omit<ErrorLogEntry, 'id' | 'timestamp'>) => {
-      if (!enabled) return;
-
-      const newEntry: ErrorLogEntry = {
-        ...entry,
-        id: generateId(),
-        timestamp: new Date(),
-        // Truncate large payloads
-        payload: entry.payload ? truncatePayload(entry.payload) : undefined,
-      };
-
-      setErrors((prev) => {
-        const updated = [newEntry, ...prev];
-        // Keep only max entries
-        return updated.slice(0, MAX_ENTRIES);
-      });
-    },
-    [enabled, generateId]
-  );
-
-  const clearErrors = useCallback(() => {
-    setErrors([]);
-    try {
-      sessionStorage.removeItem(STORAGE_KEY);
-    } catch {
-      // Ignore
-    }
-  }, []);
-
-  const clearError = useCallback((id: string) => {
-    setErrors((prev) => prev.filter((e) => e.id !== id));
-  }, []);
-
-  const setEnabled = useCallback((value: boolean) => {
-    setEnabledState(value);
-    try {
-      sessionStorage.setItem(ENABLED_KEY, String(value));
-    } catch {
-      // Ignore
-    }
-  }, []);
-
-  const exportErrors = useCallback(() => {
-    return JSON.stringify(errors, null, 2);
-  }, [errors]);
-
-  const value = useMemo(
-    () => ({
-      errors,
-      enabled,
-      maxEntries: MAX_ENTRIES,
-      isProviderAvailable: true,
-      logError,
-      clearErrors,
-      clearError,
-      setEnabled,
-      exportErrors,
-    }),
-    [errors, enabled, logError, clearErrors, clearError, setEnabled, exportErrors]
-  );
-
-  const ErrorLogContext = getSharedContext();
-  return <ErrorLogContext.Provider value={value}>{children}</ErrorLogContext.Provider>;
+  return <>{children}</>;
 }
 
 // =============================================================================
@@ -237,6 +265,8 @@ export function ErrorLogProvider({ children }: { children: ReactNode }) {
 
 /**
  * Hook to access the global error log.
+ * 
+ * Uses a global store pattern that works across module boundaries in monorepos.
  * 
  * @example
  * ```tsx
@@ -259,24 +289,22 @@ export function ErrorLogProvider({ children }: { children: ReactNode }) {
  * ```
  */
 export function useErrorLog(): ErrorLogState & ErrorLogActions {
-  const ErrorLogContext = getSharedContext();
-  const context = useContext(ErrorLogContext);
-  if (!context) {
-    // Return a no-op version if not wrapped in provider
-    // This allows the hook to work without strict provider requirements
-    return {
-      errors: [],
-      enabled: true, // Show as enabled even in fallback (less confusing UX)
-      maxEntries: 0,
-      isProviderAvailable: false, // Flag to detect fallback mode
-      logError: () => {},
-      clearErrors: () => {},
-      clearError: () => {},
-      setEnabled: () => {},
-      exportErrors: () => '[]',
-    };
-  }
-  return context;
+  const store = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+
+  return useMemo(
+    () => ({
+      errors: store.errors,
+      enabled: store.enabled,
+      maxEntries: MAX_ENTRIES,
+      isProviderAvailable: store.isProviderMounted,
+      logError: storeLogError,
+      clearErrors: storeClearErrors,
+      clearError: storeClearError,
+      setEnabled: storeSetEnabled,
+      exportErrors: storeExportErrors,
+    }),
+    [store.errors, store.enabled, store.isProviderMounted]
+  );
 }
 
 /**
