@@ -1,1 +1,0 @@
-{"version":3,"file":"AuthCard.d.ts","sourceRoot":"","sources":["../../src/components/AuthCard.tsx"],"names":[],"mappings":"AAEA,OAAO,KAAK,MAAM,OAAO,CAAC;AAI1B,MAAM,WAAW,aAAa;IAC5B,QAAQ,EAAE,KAAK,CAAC,SAAS,CAAC;IAC1B,4CAA4C;IAC5C,QAAQ,CAAC,EAAE,MAAM,CAAC;CACnB;AAED;;GAEG;AACH,wBAAgB,QAAQ,CAAC,EAAE,QAAQ,EAAE,QAAkB,EAAE,EAAE,aAAa,2CAgBvE"}
