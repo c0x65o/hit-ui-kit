@@ -1156,11 +1156,23 @@ export function DataTable<TData extends Record<string, unknown>>({
                 items={table
                   .getAllColumns()
                   .filter((col: any) => col.getCanHide())
-                  .map((col: any) => ({
-                    label: String(col.columnDef.header),
-                    icon: col.getIsVisible() ? <Eye size={14} /> : <EyeOff size={14} />,
-                    onClick: () => col.toggleVisibility(),
-                  }))}
+                  .map((col: any) => {
+                    // Hide "action" columns (often have empty header/label) from the column picker.
+                    const header = col?.columnDef?.header;
+                    const label =
+                      typeof header === 'string'
+                        ? header.trim()
+                        : typeof header === 'number'
+                          ? String(header)
+                          : '';
+                    if (!label) return null;
+                    return {
+                      label,
+                      icon: col.getIsVisible() ? <Eye size={14} /> : <EyeOff size={14} />,
+                      onClick: () => col.toggleVisibility(),
+                    };
+                  })
+                  .filter(Boolean) as any}
               />
             )}
 

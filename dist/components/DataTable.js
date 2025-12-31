@@ -981,11 +981,18 @@ tableId, enableViews, onViewFiltersChange, onViewFilterModeChange, onViewGroupBy
                                                 } }), "Refresh"] })), showColumnVisibility && (_jsx(Dropdown, { trigger: _jsxs(Button, { variant: "secondary", size: "sm", children: [_jsx(Eye, { size: 16, style: { marginRight: spacing.xs } }), "Columns"] }), items: table
                                             .getAllColumns()
                                             .filter((col) => col.getCanHide())
-                                            .map((col) => ({
-                                            label: String(col.columnDef.header),
-                                            icon: col.getIsVisible() ? _jsx(Eye, { size: 14 }) : _jsx(EyeOff, { size: 14 }),
-                                            onClick: () => col.toggleVisibility(),
-                                        })) })), exportable && hasData && (_jsxs(Button, { variant: "secondary", size: "sm", onClick: handleExport, children: [_jsx(Download, { size: 16, style: { marginRight: spacing.xs } }), "Export CSV"] }))] })] })), _jsx("div", { style: { overflowX: 'auto', border: `1px solid ${colors.border.subtle}`, borderRadius: spacing.sm }, children: showLoadingState ? (_jsx("div", { style: styles({
+                                            .map((col) => {
+                                            const header = col?.columnDef?.header;
+                                            const label = typeof header === 'string' ? header.trim() : typeof header === 'number' ? String(header) : '';
+                                            if (!label)
+                                                return null;
+                                            return ({
+                                                label,
+                                                icon: col.getIsVisible() ? _jsx(Eye, { size: 14 }) : _jsx(EyeOff, { size: 14 }),
+                                                onClick: () => col.toggleVisibility(),
+                                            });
+                                        })
+                                            .filter(Boolean) })), exportable && hasData && (_jsxs(Button, { variant: "secondary", size: "sm", onClick: handleExport, children: [_jsx(Download, { size: 16, style: { marginRight: spacing.xs } }), "Export CSV"] }))] })] })), _jsx("div", { style: { overflowX: 'auto', border: `1px solid ${colors.border.subtle}`, borderRadius: spacing.sm }, children: showLoadingState ? (_jsx("div", { style: styles({
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
