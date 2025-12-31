@@ -1,6 +1,6 @@
 {
   "name": "@hit/ui-kit",
-  "version": "1.0.83",
+  "version": "1.0.84",
   "description": "UI Kit contract for HIT feature packs - interfaces and context only",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -46,11 +46,11 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "lucide-react": "^0.460.0",
-    "typescript": "^5.0.0"
+    "typescript": "^5"
   },
   "peerDependencies": {
     "@tanstack/react-table": "^8.0.0",
-    "react": "^19.0.0"
+    "react": "^19.2.3"
   },
   "keywords": [
     "hit",
