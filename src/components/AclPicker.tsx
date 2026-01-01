@@ -52,7 +52,6 @@ export function AclPicker({
   // Callers should provide fetchPrincipals or we will show an error if it's missing.
   const hookPrincipals: Principal[] = [];
   const principalsLoading = false;
-  const principalsError = null;
 
   const [customPrincipals, setCustomPrincipals] = useState<Principal[]>([]);
   const [customPrincipalsLoading, setCustomPrincipalsLoading] = useState(false);
@@ -102,7 +101,10 @@ export function AclPicker({
 
   const principals = fetchPrincipals ? customPrincipals : hookPrincipals;
   const principalsLoadingState = fetchPrincipals ? customPrincipalsLoading : principalsLoading;
-  const principalsErrorState = fetchPrincipals ? null : principalsError;
+  const principalsErrorState: Error | null =
+    !fetchPrincipals && showAddForm
+      ? new Error('AclPicker requires fetchPrincipals to load principal options')
+      : null;
 
   // Filter principals
   const filteredPrincipals = useMemo(() => {
