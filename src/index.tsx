@@ -247,9 +247,33 @@ export {
   type ViewColumnDefinition,
   TableViewSharingPanel,
   type TableViewShareRecipient,
+  // Layout Primitives
+  Stack,
+  Row,
+  Grid,
+  GridItem,
+  Box,
+  // Typography
+  Text,
+  Heading,
   // Utils
   cn,
   styles,
 } from './components';
 
 export type { AuthLayoutProps, AuthCardProps, FormInputProps } from './components';
+
+// Layout Primitive Types
+export type {
+  StackProps,
+  StackGap,
+  RowProps,
+  RowGap,
+  GridProps,
+  GridItemProps,
+  GridGap,
+  BoxProps,
+  BoxSpacing,
+  TextProps,
+  HeadingProps,
+} from './components';
