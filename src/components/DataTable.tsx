@@ -169,9 +169,12 @@ export function DataTable<TData extends Record<string, unknown>>({
   // Get filters from centralized registry (if tableId is provided)
   const { filters: registryFilters, hasFilters: hasRegistryFilters } = useTableFilters(tableId);
   
+  // Auto-enable filters if registry has filters for this tableId (unless explicitly disabled)
+  const filtersEnabled = showGlobalFilters || hasRegistryFilters;
+  
   // Auto-generate filter configs: Registry > Column definitions > Explicit globalFilters
   const effectiveGlobalFilters = useMemo(() => {
-    if (!showGlobalFilters && (!globalFilters || globalFilters.length === 0)) {
+    if (!filtersEnabled && (!globalFilters || globalFilters.length === 0)) {
       return [];
     }
     
@@ -184,7 +187,7 @@ export function DataTable<TData extends Record<string, unknown>>({
     }
     
     // Priority 1: Use registry filters if available
-    if (showGlobalFilters && hasRegistryFilters && registryFilters.length > 0) {
+    if (filtersEnabled && hasRegistryFilters && registryFilters.length > 0) {
       // Merge registry filters with any explicit overrides
       return registryFilters.map((regFilter) => {
         const override = overrides.get(regFilter.columnKey);
@@ -199,7 +202,7 @@ export function DataTable<TData extends Record<string, unknown>>({
     }
     
     // Priority 2: Auto-discover from column definitions
-    if (showGlobalFilters) {
+    if (filtersEnabled) {
       const autoFilters: GlobalFilterConfig[] = [];
       for (const col of columns) {
         const override = overrides.get(col.key);
@@ -246,7 +249,7 @@ export function DataTable<TData extends Record<string, unknown>>({
     
     // Priority 3: Use explicit globalFilters only
     return globalFilters || [];
-  }, [showGlobalFilters, globalFilters, columns, hasRegistryFilters, registryFilters]);
+  }, [filtersEnabled, globalFilters, columns, hasRegistryFilters, registryFilters]);
 
   // Global filter values (from GlobalFilterBar)
   const [globalFilterValues, setGlobalFilterValues] = useState<Record<string, string | string[]>>(() => {

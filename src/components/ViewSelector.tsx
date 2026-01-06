@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { ChevronDown, Plus, Edit2, Trash2, Star, Filter, Trash, Eye, EyeOff, Columns, Layers, Share2, Users, X, ArrowUpDown, Check } from 'lucide-react';
 import { useTableView, type TableView, type TableViewFilter, type TableViewShare } from '../hooks/useTableView';
 import { useThemeTokens } from '../theme/index.js';
@@ -13,6 +13,7 @@ import { Select } from './Select.js';
 import { Checkbox } from './Checkbox.js';
 import { TableViewSharingPanel, type TableViewShareRecipient } from './TableViewSharingPanel.js';
 import { styles } from './utils.js';
+import { getTableFilters } from '../config/tableFilters.js';
 
 /**
  * Filter operators for table views
@@ -89,6 +90,51 @@ export function ViewSelector({ tableId, onViewChange, onReady, availableColumns 
   });
   const alertDialog = useAlertDialog();
   
+  // SINGLE SOURCE OF TRUTH: Merge registry filters with passed-in columns
+  // Registry takes priority, then fall back to passed-in columns
+  const effectiveColumns = useMemo<ViewColumnDefinition[]>(() => {
+    const registryFilters = getTableFilters(tableId);
+    
+    // Build a map of registry filters by columnKey
+    const registryMap = new Map<string, ViewColumnDefinition>();
+    for (const filter of registryFilters) {
+      // Convert TableFilterDefinition to ViewColumnDefinition
+      registryMap.set(filter.columnKey, {
+        key: filter.columnKey,
+        label: filter.label,
+        type: filter.filterType === 'autocomplete' ? 'select' : filter.filterType as any,
+        // Static options will be fetched dynamically in the filter input
+      });
+    }
+    
+    // If registry has filters, use them as base and merge with passed columns
+    if (registryMap.size > 0) {
+      // Start with registry columns
+      const merged = new Map<string, ViewColumnDefinition>(registryMap);
+      
+      // Add any passed columns that aren't in registry (e.g., columns without filter config)
+      for (const col of availableColumns) {
+        if (!merged.has(col.key)) {
+          merged.set(col.key, col);
+        } else {
+          // Merge options from passed columns into registry columns
+          const existing = merged.get(col.key)!;
+          if (col.options && !existing.options) {
+            existing.options = col.options;
+          }
+          if (col.hideable !== undefined && existing.hideable === undefined) {
+            existing.hideable = col.hideable;
+          }
+        }
+      }
+      
+      return Array.from(merged.values());
+    }
+    
+    // No registry, use passed columns
+    return availableColumns;
+  }, [tableId, availableColumns]);
+  
   // Notify parent when view system is ready
   useEffect(() => {
     // If views API isn't available (feature pack not installed), treat as "ready"
@@ -130,7 +176,7 @@ export function ViewSelector({ tableId, onViewChange, onReady, availableColumns 
   const allLabel = `All ${tableLabel}`;
 
   // Get hideable columns (all columns are hideable by default unless specified)
-  const hideableColumns = availableColumns.filter((col) => col.hideable !== false);
+  const hideableColumns = effectiveColumns.filter((col) => col.hideable !== false);
 
   // Reset builder when opening
   useEffect(() => {
@@ -206,7 +252,7 @@ export function ViewSelector({ tableId, onViewChange, onReady, availableColumns 
   };
 
   const handleAddFilter = () => {
-    const firstColumn = availableColumns[0];
+    const firstColumn = effectiveColumns[0];
     setBuilderFilters([
       ...builderFilters,
       {
@@ -232,7 +278,7 @@ export function ViewSelector({ tableId, onViewChange, onReady, availableColumns 
 
   // Update multiple filter fields at once (avoids stale closure issues)
   const handleFilterFieldChange = (index: number, newField: string) => {
-    const newCol = availableColumns.find((c) => c.key === newField);
+    const newCol = effectiveColumns.find((c) => c.key === newField);
     const defaultOp = getOperatorOptions(newCol?.type)[0]?.value || 'equals';
     setBuilderFilters((prev) => {
       const newFilters = [...prev];
@@ -247,7 +293,7 @@ export function ViewSelector({ tableId, onViewChange, onReady, availableColumns 
   };
 
   const handleAddSort = () => {
-    const firstColumn = availableColumns[0];
+    const firstColumn = effectiveColumns[0];
     const nextId = String(firstColumn?.key || 'name');
     setBuilderSorting((prev) => [...prev, { id: nextId, desc: false }]);
   };
@@ -1022,7 +1068,7 @@ export function ViewSelector({ tableId, onViewChange, onReady, availableColumns 
                   <div style={styles({ display: 'flex', flexDirection: 'column', gap: spacing.sm })}>
 
                     {builderFilters.map((filter, index) => {
-                      const col = availableColumns.find((c) => c.key === filter.field);
+                      const col = effectiveColumns.find((c) => c.key === filter.field);
                       return (
                         <div
                           key={index}
@@ -1039,8 +1085,8 @@ export function ViewSelector({ tableId, onViewChange, onReady, availableColumns 
                           <Select
                             value={filter.field}
                             onChange={(value) => handleFilterFieldChange(index, value)}
-                            options={availableColumns.length > 0 
-                              ? availableColumns.map((c) => ({ value: c.key, label: c.label }))
+                            options={effectiveColumns.length > 0 
+                              ? effectiveColumns.map((c) => ({ value: c.key, label: c.label }))
                               : [{ value: 'status', label: 'Status' }]
                             }
                             placeholder="Field"
@@ -1188,7 +1234,7 @@ export function ViewSelector({ tableId, onViewChange, onReady, availableColumns 
                     onChange={setBuilderGroupByField}
                     options={[
                       { value: '', label: 'No grouping' },
-                      ...availableColumns.map((c) => ({ 
+                      ...effectiveColumns.map((c) => ({ 
                         value: c.key, 
                         label: c.label + (c.type === 'select' && c.options?.some((o) => o.sortOrder !== undefined) ? ' (has sort order)' : ''),
                       })),
@@ -1255,7 +1301,7 @@ export function ViewSelector({ tableId, onViewChange, onReady, availableColumns 
                         <Select
                           value={sort.id}
                           onChange={(value) => handleSortChange(index, { id: value })}
-                          options={availableColumns.map((c) => ({ value: c.key, label: c.label }))}
+                          options={effectiveColumns.map((c) => ({ value: c.key, label: c.label }))}
                           placeholder="Field"
                         />
                         <Select

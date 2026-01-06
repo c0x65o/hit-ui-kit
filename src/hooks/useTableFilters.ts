@@ -5,7 +5,18 @@ import { getTableFilters, type TableFilterDefinition } from '../config/tableFilt
 import type { GlobalFilterConfig } from '../types';
 
 /**
+ * Threshold for switching between dropdown and autocomplete.
+ * If option count <= threshold, use dropdown. Otherwise use autocomplete.
+ */
+const DROPDOWN_THRESHOLD = 20;
+
+/**
  * Hook that automatically builds filter configurations from the centralized registry.
+ * 
+ * Features:
+ * - Automatically fetches options for select/multiselect filters
+ * - Smart switching: autocomplete filters with <= 20 options become dropdowns
+ * - Handles both path-based (/endpoint/{id}) and query-based (/endpoint?id=) resolve
  * 
  * Usage:
  * ```tsx
@@ -21,6 +32,8 @@ import type { GlobalFilterConfig } from '../types';
  */
 export function useTableFilters(tableId: string | undefined) {
   const [optionsCache, setOptionsCache] = useState<Record<string, Array<{ value: string; label: string }>>>({});
+  // Track which autocomplete filters should be rendered as dropdowns (small option count)
+  const [autocompleteAsDropdown, setAutocompleteAsDropdown] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
 
   const filterDefs = useMemo(() => {
@@ -28,54 +41,93 @@ export function useTableFilters(tableId: string | undefined) {
     return getTableFilters(tableId);
   }, [tableId]);
 
-  // Fetch options for select/multiselect filters
+  // Fetch options for select/multiselect filters AND pre-fetch autocomplete to check count
   useEffect(() => {
     if (!filterDefs.length) return;
 
+    // Get filters that need options fetched
     const selectFilters = filterDefs.filter(
       (f) => (f.filterType === 'select' || f.filterType === 'multiselect') && f.optionsEndpoint
     );
+    
+    // Also pre-fetch autocomplete filters to check if they should be dropdowns
+    const autocompleteFilters = filterDefs.filter(
+      (f) => f.filterType === 'autocomplete' && f.searchEndpoint
+    );
 
-    if (!selectFilters.length) return;
+    if (!selectFilters.length && !autocompleteFilters.length) return;
 
     let cancelled = false;
     setLoading(true);
 
-    Promise.all(
-      selectFilters.map(async (f) => {
-        try {
-          const res = await fetch(f.optionsEndpoint!);
-          if (!res.ok) return { key: f.columnKey, options: [] };
-          const json = await res.json();
-          
-          // Extract items from response
-          const itemsPath = f.itemsPath || 'items';
-          let items = json;
+    const fetchOptions = async (f: TableFilterDefinition, endpoint: string, isAutocomplete: boolean) => {
+      try {
+        // For autocomplete, fetch with large page size to check total count
+        const url = isAutocomplete 
+          ? `${endpoint}?pageSize=${DROPDOWN_THRESHOLD + 1}` 
+          : endpoint;
+        const res = await fetch(url);
+        if (!res.ok) return { key: f.columnKey, options: [], isAutocomplete, total: 0 };
+        const json = await res.json();
+        
+        // Extract items from response
+        const itemsPath = f.itemsPath;
+        let items = json;
+        if (itemsPath) {
           for (const part of itemsPath.split('.')) {
             items = items?.[part];
           }
-          if (!Array.isArray(items)) items = [];
-
-          const valueField = f.valueField || 'id';
-          const labelField = f.labelField || 'name';
-
-          const options = items.map((item: any) => ({
-            value: String(item[valueField] || item.id || ''),
-            label: String(item[labelField] || item.name || item[valueField] || ''),
-          }));
-
-          return { key: f.columnKey, options };
-        } catch {
-          return { key: f.columnKey, options: [] };
         }
-      })
-    ).then((results) => {
-      if (cancelled) return;
-      const cache: Record<string, Array<{ value: string; label: string }>> = {};
-      for (const { key, options } of results) {
-        cache[key] = options;
+        if (!Array.isArray(items)) items = [];
+
+        // Check total from pagination if available
+        const total = json.pagination?.total ?? json.total ?? items.length;
+
+        const valueField = f.valueField || 'id';
+        const labelField = f.labelField || 'name';
+
+        const options = items.map((item: any) => {
+          const value = String(item[valueField] || item.id || '');
+          let label = String(item[labelField] || item.name || item[valueField] || '');
+          // Special handling for user objects with profile_fields
+          if (item.profile_fields) {
+            const pf = item.profile_fields as { first_name?: string; last_name?: string };
+            const displayName = [pf.first_name, pf.last_name].filter(Boolean).join(' ').trim();
+            if (displayName) {
+              label = displayName;
+            }
+          }
+          return { value, label };
+        });
+
+        return { key: f.columnKey, options, isAutocomplete, total };
+      } catch {
+        return { key: f.columnKey, options: [], isAutocomplete, total: 0 };
       }
+    };
+
+    Promise.all([
+      ...selectFilters.map((f) => fetchOptions(f, f.optionsEndpoint!, false)),
+      ...autocompleteFilters.map((f) => fetchOptions(f, f.searchEndpoint!, true)),
+    ]).then((results) => {
+      if (cancelled) return;
+      
+      const cache: Record<string, Array<{ value: string; label: string }>> = {};
+      const asDropdown = new Set<string>();
+      
+      for (const { key, options, isAutocomplete, total } of results) {
+        // For autocomplete, check if it should be a dropdown instead
+        if (isAutocomplete && total <= DROPDOWN_THRESHOLD) {
+          cache[key] = options;
+          asDropdown.add(key);
+        } else if (!isAutocomplete) {
+          cache[key] = options;
+        }
+        // For autocomplete with many options, don't cache (will search dynamically)
+      }
+      
       setOptionsCache(cache);
+      setAutocompleteAsDropdown(asDropdown);
       setLoading(false);
     });
 
@@ -87,14 +139,18 @@ export function useTableFilters(tableId: string | undefined) {
   // Build GlobalFilterConfig array
   const filters = useMemo<GlobalFilterConfig[]>(() => {
     return filterDefs.map((def): GlobalFilterConfig => {
+      // Smart switching: if autocomplete has few options, render as dropdown instead
+      const shouldBeDropdown = def.filterType === 'autocomplete' && autocompleteAsDropdown.has(def.columnKey);
+      const effectiveFilterType = shouldBeDropdown ? 'select' : def.filterType;
+      
       const base: GlobalFilterConfig = {
         columnKey: def.columnKey,
         label: def.label,
-        filterType: def.filterType,
+        filterType: effectiveFilterType,
       };
 
-      // Add options for select/multiselect
-      if (def.filterType === 'select' || def.filterType === 'multiselect') {
+      // Add options for select/multiselect (or autocomplete rendered as dropdown)
+      if (effectiveFilterType === 'select' || effectiveFilterType === 'multiselect') {
         if (def.staticOptions) {
           base.filterOptions = def.staticOptions;
         } else if (optionsCache[def.columnKey]) {
@@ -102,11 +158,11 @@ export function useTableFilters(tableId: string | undefined) {
         }
       }
 
-      // Add onSearch/resolveValue for autocomplete
-      if (def.filterType === 'autocomplete' && def.searchEndpoint) {
+      // Add onSearch/resolveValue for autocomplete (only if not rendered as dropdown)
+      if (effectiveFilterType === 'autocomplete' && def.searchEndpoint) {
         const valueField = def.valueField || 'id';
         const labelField = def.labelField || 'name';
-        const itemsPath = def.itemsPath || 'items';
+        const itemsPath = def.itemsPath;
 
         base.onSearch = async (query: string, limit: number) => {
           try {
@@ -116,8 +172,11 @@ export function useTableFilters(tableId: string | undefined) {
             const json = await res.json();
             
             let items = json;
-            for (const part of itemsPath.split('.')) {
-              items = items?.[part];
+            // If itemsPath is empty/undefined, use the response directly
+            if (itemsPath) {
+              for (const part of itemsPath.split('.')) {
+                items = items?.[part];
+              }
             }
             if (!Array.isArray(items)) items = [];
 
@@ -134,9 +193,19 @@ export function useTableFilters(tableId: string | undefined) {
           base.resolveValue = async (value: string) => {
             if (!value) return null;
             try {
-              const res = await fetch(`${def.resolveEndpoint}/${value}`);
+              // If value contains @ or special chars, use query param instead of path
+              // This handles email-based IDs (users) vs UUID-based IDs (contacts, etc.)
+              const isEmailOrSpecial = value.includes('@') || value.includes('/');
+              const url = isEmailOrSpecial
+                ? `${def.resolveEndpoint}?id=${encodeURIComponent(value)}`
+                : `${def.resolveEndpoint}/${encodeURIComponent(value)}`;
+              
+              const res = await fetch(url);
               if (!res.ok) return null;
-              const item = await res.json();
+              const json = await res.json();
+              
+              // Handle both single item and items array responses
+              const item = json.items?.[0] || json;
               return {
                 value: String(item[valueField] || value),
                 label: String(item[labelField] || item[valueField] || value),
@@ -150,7 +219,7 @@ export function useTableFilters(tableId: string | undefined) {
 
       return base;
     });
-  }, [filterDefs, optionsCache]);
+  }, [filterDefs, optionsCache, autocompleteAsDropdown]);
 
   return { filters, loading, hasFilters: filterDefs.length > 0 };
 }
