@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { ChevronDown, Plus, Edit2, Trash2, Star, Filter, Trash, Eye, EyeOff, Columns, Layers, Share2, Users, X, ArrowUpDown, Check } from 'lucide-react';
 import { useTableView, type TableView, type TableViewFilter, type TableViewShare } from '../hooks/useTableView';
 import { useThemeTokens } from '../theme/index.js';
@@ -101,6 +101,12 @@ export function ViewSelector({ tableId, onViewChange, onReady, availableColumns 
   });
   const alertDialog = useAlertDialog();
   
+  // Use ref for onReady to avoid infinite loops when parent passes new function reference
+  const onReadyRef = useRef(onReady);
+  useEffect(() => {
+    onReadyRef.current = onReady;
+  }, [onReady]);
+  
   // SINGLE SOURCE OF TRUTH: Merge registry filters with passed-in columns
   // Registry takes priority, then fall back to passed-in columns
   const effectiveColumns = useMemo<ViewColumnDefinition[]>(() => {
@@ -157,8 +163,8 @@ export function ViewSelector({ tableId, onViewChange, onReady, availableColumns 
   useEffect(() => {
     // If views API isn't available (feature pack not installed), treat as "ready"
     // so tables don't get stuck in Loading state waiting for a view that can't load.
-    onReady?.(available ? viewReady : true);
-  }, [available, viewReady, onReady]);
+    onReadyRef.current?.(available ? viewReady : true);
+  }, [available, viewReady]);
   
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [showBuilder, setShowBuilder] = useState(false);

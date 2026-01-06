@@ -164,9 +164,7 @@ export function useTableView({ tableId, onViewChange }: UseTableViewOptions) {
   const [viewReady, setViewReady] = useState(false); // True once initial view is applied
   const onViewChangeRef = useRef(onViewChange);
   const hasInitialized = useRef(false);
-  const instanceId = useRef(Math.random().toString(36).slice(2, 8));
-  
-  console.log(`[useTableView ${instanceId.current}] render - tableId=${tableId}, currentView=${currentView?.name}, hasInitialized=${hasInitialized.current}`);
+  const tableIdRef = useRef(tableId);
   
   // Keep ref in sync
   useEffect(() => {
@@ -181,7 +179,6 @@ export function useTableView({ tableId, onViewChange }: UseTableViewOptions) {
   }, [currentView, viewReady]);
 
   const fetchViews = useCallback(async (resetToDefault = false) => {
-    console.log(`[useTableView ${instanceId.current}] fetchViews called - resetToDefault=${resetToDefault}, hasInitialized=${hasInitialized.current}`);
     try {
       setLoading(true);
       const res = await fetch(`/api/table-views?tableId=${encodeURIComponent(tableId)}`);
@@ -202,7 +199,6 @@ export function useTableView({ tableId, onViewChange }: UseTableViewOptions) {
       
       const json = await res.json();
       const fetchedViews = json.data || [];
-      console.log(`[useTableView ${instanceId.current}] fetched ${fetchedViews.length} views, resetToDefault=${resetToDefault}`);
       setViews(fetchedViews);
       setAvailable(true);
       setError(null);
@@ -224,11 +220,6 @@ export function useTableView({ tableId, onViewChange }: UseTableViewOptions) {
           restored = getSystemDefaultView(fetchedViews);
         }
 
-        if (restored) {
-          console.log(`[useTableView ${instanceId.current}] Restoring cached view: ${restored.name}`);
-        } else {
-          console.log(`[useTableView ${instanceId.current}] Restoring to All Items`);
-        }
         setCurrentView(restored);
         // Persist what we restored so remounts don't re-apply a default view
         persistCurrentSelection(tableId, restored);
@@ -237,7 +228,6 @@ export function useTableView({ tableId, onViewChange }: UseTableViewOptions) {
       // Mark as ready once initial view is applied
       setViewReady(true);
     } catch (err) {
-      console.error(`[useTableView ${instanceId.current}] error:`, err);
       // Network errors or other issues - mark as unavailable
       if ((err as any)?.name === 'TypeError') {
         setAvailable(false);
@@ -252,12 +242,9 @@ export function useTableView({ tableId, onViewChange }: UseTableViewOptions) {
 
   // Only fetch views and set default on FIRST mount
   useEffect(() => {
-    console.log(`[useTableView ${instanceId.current}] useEffect triggered - hasInitialized=${hasInitialized.current}`);
-    
     // Only reset to default if this is first initialization
     if (!hasInitialized.current) {
       hasInitialized.current = true;
-      console.log(`[useTableView ${instanceId.current}] First init - calling fetchViews(true)`);
       fetchViews(true);
     }
   }, [fetchViews]);
@@ -327,14 +314,10 @@ export function useTableView({ tableId, onViewChange }: UseTableViewOptions) {
   }, [tableId]);
 
   const selectView = useCallback(async (view: TableView | null) => {
-    console.log(`[useTableView ${instanceId.current}] selectView called - selecting: ${view?.name}`);
     setCurrentView(view);
     
     // Cache the selection so it persists across remounts AND page refreshes
     persistCurrentSelection(tableId, view);
-    if (view) {
-      console.log(`[useTableView ${instanceId.current}] Cached view selection: ${view.name} for table ${tableId}`);
-    }
 
     // Update lastUsedAt if view is selected
     if (view && !view.isSystem) {
