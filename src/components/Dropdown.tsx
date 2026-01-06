@@ -7,7 +7,7 @@ import type { DropdownProps } from '../types';
 
 export function Dropdown({ trigger, items, align = 'left' }: DropdownProps) {
   const [open, setOpen] = useState(false);
-  const [position, setPosition] = useState<{ top: number; left: number; right?: number } | null>(null);
+  const [position, setPosition] = useState<{ top: number; left?: number; right?: number } | null>(null);
   const triggerRef = useRef<HTMLDivElement>(null);
   const { colors, radius, textStyles: ts, spacing, shadows } = useThemeTokens();
 
@@ -22,19 +22,19 @@ export function Dropdown({ trigger, items, align = 'left' }: DropdownProps) {
         ? parseFloat(spacing.sm.replace('px', '')) || 8
         : spacing.sm || 8;
       
-      let left = rect.left;
+      let left: number | undefined = rect.left;
       let right: number | undefined;
       
       if (align === 'right') {
         right = window.innerWidth - rect.right;
-        left = undefined as any;
+        left = undefined;
       }
       
       // Ensure dropdown doesn't go off-screen
-      if (align === 'left' && left + dropdownWidth > window.innerWidth) {
+      if (align === 'left' && left !== undefined && left + dropdownWidth > window.innerWidth) {
         // Flip to right side if it would overflow
         right = window.innerWidth - rect.right;
-        left = undefined as any;
+        left = undefined;
       }
       
       setPosition({

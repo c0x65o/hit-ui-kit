@@ -35,7 +35,7 @@ import { Input } from './Input';
 import { Dropdown } from './Dropdown';
 import { ViewSelector } from './ViewSelector';
 import { GlobalFilterBar } from './GlobalFilterBar';
-import type { DataTableProps } from '../types';
+import type { DataTableProps, GlobalFilterConfig } from '../types';
 import type { TableView } from '../hooks/useTableView';
 
 type BucketColumnDef = {
@@ -172,7 +172,7 @@ export function DataTable<TData extends Record<string, unknown>>({
     }
     
     // Build overrides map from explicit globalFilters
-    const overrides = new Map<string, typeof globalFilters extends (infer T)[] ? T : never>();
+    const overrides = new Map<string, GlobalFilterConfig>();
     if (globalFilters) {
       for (const f of globalFilters) {
         overrides.set(f.columnKey, f);
@@ -181,7 +181,7 @@ export function DataTable<TData extends Record<string, unknown>>({
     
     // If showGlobalFilters is true, auto-discover filterable columns
     if (showGlobalFilters) {
-      const autoFilters: typeof globalFilters = [];
+      const autoFilters: GlobalFilterConfig[] = [];
       for (const col of columns) {
         const override = overrides.get(col.key);
         // Skip if explicitly disabled
@@ -207,7 +207,7 @@ export function DataTable<TData extends Record<string, unknown>>({
           autoFilters.push({
             columnKey: col.key,
             label: override?.label,
-            filterType: filterType as any,
+            filterType: filterType,
             filterOptions: filterOptions,
             onSearch: onSearch,
             resolveValue: override?.resolveValue || col.resolveValue,
