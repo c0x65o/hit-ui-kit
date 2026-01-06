@@ -1275,10 +1275,9 @@ export function DataTable<TData extends Record<string, unknown>>({
   const visibleColumns = table.getVisibleFlatColumns();
   const hasData = data.length > 0;
   const showPageSizeSelector = Boolean(onPageSizeChange) && (pageSizeOptions?.length || 0) > 0;
-  const shouldShowPagination =
-    !showLoadingState &&
-    hasData &&
-    (manualPagination ? total !== undefined : table.getPageCount() > 1 || showPageSizeSelector);
+  // Always show pagination footer when there's data (to display count)
+  // The controls will be disabled if there's only one page
+  const shouldShowPagination = !showLoadingState && hasData;
 
   return (
     <>
