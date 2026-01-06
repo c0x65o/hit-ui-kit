@@ -46,3 +46,5 @@ export type {
 
 export { useLatencyTrackedFetch, createLatencyTrackedFetch } from './useLatencyTrackedFetch';
 export type { LatencyTrackedFetchOptions, LatencyTrackerConfig } from './useLatencyTrackedFetch';
+
+export { useTableFilters } from './useTableFilters';

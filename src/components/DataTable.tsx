@@ -35,6 +35,7 @@ import { Input } from './Input';
 import { Dropdown } from './Dropdown';
 import { ViewSelector } from './ViewSelector';
 import { FilterDropdown } from './FilterDropdown';
+import { useTableFilters } from '../hooks/useTableFilters';
 import type { DataTableProps, GlobalFilterConfig } from '../types';
 import type { TableView } from '../hooks/useTableView';
 
@@ -165,7 +166,10 @@ export function DataTable<TData extends Record<string, unknown>>({
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(initialColumnVisibility || {});
   const [globalFilter, setGlobalFilter] = useState('');
   
-  // Auto-generate filter configs from columns when showGlobalFilters is true
+  // Get filters from centralized registry (if tableId is provided)
+  const { filters: registryFilters, hasFilters: hasRegistryFilters } = useTableFilters(tableId);
+  
+  // Auto-generate filter configs: Registry > Column definitions > Explicit globalFilters
   const effectiveGlobalFilters = useMemo(() => {
     if (!showGlobalFilters && (!globalFilters || globalFilters.length === 0)) {
       return [];
@@ -179,7 +183,22 @@ export function DataTable<TData extends Record<string, unknown>>({
       }
     }
     
-    // If showGlobalFilters is true, auto-discover filterable columns
+    // Priority 1: Use registry filters if available
+    if (showGlobalFilters && hasRegistryFilters && registryFilters.length > 0) {
+      // Merge registry filters with any explicit overrides
+      return registryFilters.map((regFilter) => {
+        const override = overrides.get(regFilter.columnKey);
+        if (override?.enabled === false) {
+          return null;
+        }
+        return {
+          ...regFilter,
+          ...override, // Explicit overrides win
+        };
+      }).filter(Boolean) as GlobalFilterConfig[];
+    }
+    
+    // Priority 2: Auto-discover from column definitions
     if (showGlobalFilters) {
       const autoFilters: GlobalFilterConfig[] = [];
       for (const col of columns) {
@@ -225,9 +244,9 @@ export function DataTable<TData extends Record<string, unknown>>({
       return autoFilters;
     }
     
-    // Otherwise just use explicit globalFilters
+    // Priority 3: Use explicit globalFilters only
     return globalFilters || [];
-  }, [showGlobalFilters, globalFilters, columns]);
+  }, [showGlobalFilters, globalFilters, columns, hasRegistryFilters, registryFilters]);
 
   // Global filter values (from GlobalFilterBar)
   const [globalFilterValues, setGlobalFilterValues] = useState<Record<string, string | string[]>>(() => {
