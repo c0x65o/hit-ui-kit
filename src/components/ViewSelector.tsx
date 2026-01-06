@@ -13,7 +13,8 @@ import { Select } from './Select.js';
 import { Checkbox } from './Checkbox.js';
 import { TableViewSharingPanel, type TableViewShareRecipient } from './TableViewSharingPanel.js';
 import { styles } from './utils.js';
-import { getTableFilters } from '../config/tableFilters.js';
+import { Autocomplete } from './Autocomplete.js';
+import { getTableFilters, type TableFilterDefinition } from '../config/tableFilters.js';
 
 /**
  * Filter operators for table views
@@ -51,6 +52,16 @@ export interface ViewColumnDefinition {
   options?: Array<{ value: string; label: string; sortOrder?: number }>;
   /** Whether this column can be hidden (default: true) */
   hideable?: boolean;
+  /** For autocomplete: search endpoint (appends ?search=query&pageSize=limit) */
+  searchEndpoint?: string;
+  /** For autocomplete: resolve endpoint (appends /{id} or ?id=value) */
+  resolveEndpoint?: string;
+  /** For autocomplete: items path in response (e.g., 'items') */
+  itemsPath?: string;
+  /** For autocomplete: field to use as value (default: 'id') */
+  valueField?: string;
+  /** For autocomplete: field to use as label (default: 'name') */
+  labelField?: string;
 }
 
 interface ViewSelectorProps {
@@ -99,11 +110,18 @@ export function ViewSelector({ tableId, onViewChange, onReady, availableColumns 
     const registryMap = new Map<string, ViewColumnDefinition>();
     for (const filter of registryFilters) {
       // Convert TableFilterDefinition to ViewColumnDefinition
+      // Keep 'autocomplete' type so we can render the right component
       registryMap.set(filter.columnKey, {
         key: filter.columnKey,
         label: filter.label,
-        type: filter.filterType === 'autocomplete' ? 'select' : filter.filterType as any,
-        // Static options will be fetched dynamically in the filter input
+        type: filter.filterType as any,
+        options: filter.staticOptions,
+        // Preserve autocomplete endpoints
+        searchEndpoint: filter.searchEndpoint,
+        resolveEndpoint: filter.resolveEndpoint,
+        itemsPath: filter.itemsPath,
+        valueField: filter.valueField,
+        labelField: filter.labelField,
       });
     }
     
@@ -511,6 +529,97 @@ export function ViewSelector({ tableId, onViewChange, onReady, availableColumns 
             value={filter.value?.toString() || ''}
             onChange={(value) => handleFilterChange(index, 'value', value ? Number(value) : '')}
             placeholder="Enter number..."
+          />
+        </div>
+      );
+    }
+
+    // Autocomplete field
+    if (fieldType === 'autocomplete' && column?.searchEndpoint) {
+      const searchEndpoint = column.searchEndpoint;
+      const resolveEndpoint = column.resolveEndpoint || searchEndpoint;
+      const itemsPath = column.itemsPath || 'items';
+      const valueField = column.valueField || 'id';
+      const labelField = column.labelField || 'name';
+
+      const onSearch = async (query: string, limit: number) => {
+        try {
+          const url = `${searchEndpoint}?search=${encodeURIComponent(query)}&pageSize=${limit}`;
+          const res = await fetch(url);
+          if (!res.ok) return [];
+          const json = await res.json();
+          
+          let items = json;
+          if (itemsPath) {
+            for (const part of itemsPath.split('.')) {
+              items = items?.[part];
+            }
+          }
+          if (!Array.isArray(items)) items = [];
+
+          return items.map((item: any) => {
+            const value = String(item[valueField] || item.id || '');
+            let label = String(item[labelField] || item.name || item[valueField] || '');
+            // Special handling for user objects with profile_fields
+            if (item.profile_fields) {
+              const pf = item.profile_fields as { first_name?: string; last_name?: string };
+              const displayName = [pf.first_name, pf.last_name].filter(Boolean).join(' ').trim();
+              if (displayName) label = displayName;
+            }
+            return { value, label };
+          });
+        } catch {
+          return [];
+        }
+      };
+
+      const resolveValue = async (value: string) => {
+        if (!value) return null;
+        try {
+          // If value contains @ or special chars, use query param instead of path
+          const isEmailOrSpecial = value.includes('@') || value.includes('/');
+          const url = isEmailOrSpecial
+            ? `${resolveEndpoint}?id=${encodeURIComponent(value)}`
+            : `${resolveEndpoint}/${encodeURIComponent(value)}`;
+          
+          const res = await fetch(url);
+          if (!res.ok) return null;
+          const json = await res.json();
+          
+          // Handle both single item and items array responses
+          let item = json;
+          if (itemsPath) {
+            let items = json;
+            for (const part of itemsPath.split('.')) {
+              items = items?.[part];
+            }
+            item = Array.isArray(items) ? items[0] : items;
+          }
+          
+          if (!item) return null;
+          
+          const val = String(item[valueField] || item.id || '');
+          let label = String(item[labelField] || item.name || val);
+          if (item.profile_fields) {
+            const pf = item.profile_fields as { first_name?: string; last_name?: string };
+            const displayName = [pf.first_name, pf.last_name].filter(Boolean).join(' ').trim();
+            if (displayName) label = displayName;
+          }
+          
+          return { value: val, label };
+        } catch {
+          return null;
+        }
+      };
+
+      return (
+        <div style={{ flex: 1 }}>
+          <Autocomplete
+            value={filter.value?.toString() || ''}
+            onChange={(value) => handleFilterChange(index, 'value', value)}
+            onSearch={onSearch}
+            resolveValue={resolveValue}
+            placeholder={`Search ${column.label.toLowerCase()}...`}
           />
         </div>
       );
