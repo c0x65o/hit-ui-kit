@@ -166,7 +166,7 @@ export function useTableFilters(tableId: string | undefined) {
 
         base.onSearch = async (query: string, limit: number) => {
           try {
-            const url = `${def.searchEndpoint}?search=${encodeURIComponent(query)}&pageSize=${limit}`;
+            const url = `${def.searchEndpoint}?search=${encodeURIComponent(query)}&pageSize=${limit}&limit=${limit}`;
             const res = await fetch(url);
             if (!res.ok) return [];
             const json = await res.json();
@@ -180,10 +180,21 @@ export function useTableFilters(tableId: string | undefined) {
             }
             if (!Array.isArray(items)) items = [];
 
-            return items.map((item: any) => ({
-              value: String(item[valueField] || ''),
-              label: String(item[labelField] || item[valueField] || ''),
-            }));
+            return items.map((item: any) => {
+              // Handle profile_fields for user objects
+              let label = String(item[labelField] || item[valueField] || '');
+              if (item.profile_fields) {
+                const pf = item.profile_fields as { first_name?: string; last_name?: string };
+                const displayName = [pf.first_name, pf.last_name].filter(Boolean).join(' ').trim();
+                if (displayName) {
+                  label = displayName;
+                }
+              }
+              return {
+                value: String(item[valueField] || ''),
+                label,
+              };
+            });
           } catch {
             return [];
           }
@@ -193,22 +204,49 @@ export function useTableFilters(tableId: string | undefined) {
           base.resolveValue = async (value: string) => {
             if (!value) return null;
             try {
-              // If value contains @ or special chars, use query param instead of path
-              // This handles email-based IDs (users) vs UUID-based IDs (contacts, etc.)
-              const isEmailOrSpecial = value.includes('@') || value.includes('/');
-              const url = isEmailOrSpecial
-                ? `${def.resolveEndpoint}?id=${encodeURIComponent(value)}`
-                : `${def.resolveEndpoint}/${encodeURIComponent(value)}`;
+              // Check if this is an auth directory endpoint (returns plain array, uses ?search=)
+              const isAuthDirectory = def.resolveEndpoint?.includes('/directory/users');
+              
+              let url: string;
+              if (isAuthDirectory) {
+                // Auth directory uses ?search= to find users
+                url = `${def.resolveEndpoint}?search=${encodeURIComponent(value)}&limit=1`;
+              } else if (value.includes('@') || value.includes('/')) {
+                // Email-based IDs use query param
+                url = `${def.resolveEndpoint}?id=${encodeURIComponent(value)}`;
+              } else {
+                // UUID-based IDs use path
+                url = `${def.resolveEndpoint}/${encodeURIComponent(value)}`;
+              }
               
               const res = await fetch(url);
               if (!res.ok) return null;
               const json = await res.json();
               
-              // Handle both single item and items array responses
-              const item = json.items?.[0] || json;
+              // Handle auth directory (plain array) or standard (items array or single object)
+              let item: any;
+              if (Array.isArray(json)) {
+                // Auth directory returns plain array - find exact match
+                item = json.find((u: any) => u[valueField] === value) || json[0];
+              } else {
+                item = json.items?.[0] || json;
+              }
+              
+              if (!item) return null;
+              
+              // Build display label - handle profile_fields for users
+              let displayLabel = String(item[labelField] || item[valueField] || value);
+              if (item.profile_fields) {
+                const pf = item.profile_fields as { first_name?: string; last_name?: string };
+                const displayName = [pf.first_name, pf.last_name].filter(Boolean).join(' ').trim();
+                if (displayName) {
+                  displayLabel = displayName;
+                }
+              }
+              
               return {
                 value: String(item[valueField] || value),
-                label: String(item[labelField] || item[valueField] || value),
+                label: displayLabel,
               };
             } catch {
               return null;

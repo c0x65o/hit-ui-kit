@@ -193,6 +193,98 @@ export function DataTable<TData extends Record<string, unknown>>({
   // Get filters from centralized registry (if tableId is provided)
   const { filters: registryFilters, hasFilters: hasRegistryFilters } = useTableFilters(tableId);
   
+  // Entity resolver for reference columns
+  const entityResolver = useEntityResolver();
+  
+  // Track columns with reference config
+  const referenceColumns = useMemo(() => {
+    return columns.filter((col) => col.reference?.entityType);
+  }, [columns]);
+  
+  // Resolved entity labels cache (triggers re-render when updated)
+  const [resolvedLabels, setResolvedLabels] = useState<Record<string, Record<string, string>>>({});
+  
+  // Resolve reference column IDs when data changes
+  useEffect(() => {
+    if (referenceColumns.length === 0 || !data || data.length === 0) return;
+    
+    const newLabels: Record<string, Record<string, string>> = {};
+    const toResolve: Array<{ entityType: string; ids: string[] }> = [];
+    
+    for (const col of referenceColumns) {
+      const ref = col.reference!;
+      const entityDef = getEntityDefinition(ref.entityType);
+      if (!entityDef) continue;
+      
+      // Determine the row field that might have pre-resolved label
+      const labelField = ref.labelFromRow || getLabelFromRowField(ref.entityType, ref.idField || col.key);
+      
+      // Determine the field containing the ID (default to column key)
+      const idFieldName = ref.idField || col.key;
+      
+      const idsNeedingResolution: string[] = [];
+      
+      for (const row of data) {
+        const id = (row as any)[idFieldName];
+        if (!id) continue;
+        
+        const idStr = String(id);
+        
+        // Check if label is already in row data
+        if (labelField && (row as any)[labelField]) {
+          if (!newLabels[col.key]) newLabels[col.key] = {};
+          newLabels[col.key][idStr] = String((row as any)[labelField]);
+          // Also populate the resolver cache
+          entityResolver.populateFromRowData(ref.entityType, idFieldName, labelField, [row as Record<string, unknown>]);
+        } else if (!entityResolver.isCached(ref.entityType, idStr)) {
+          // Need to resolve this ID
+          idsNeedingResolution.push(idStr);
+        } else {
+          // Already cached
+          const cachedLabel = entityResolver.getLabel(ref.entityType, idStr);
+          if (cachedLabel) {
+            if (!newLabels[col.key]) newLabels[col.key] = {};
+            newLabels[col.key][idStr] = cachedLabel;
+          }
+        }
+      }
+      
+      if (idsNeedingResolution.length > 0) {
+        toResolve.push({ entityType: ref.entityType, ids: [...new Set(idsNeedingResolution)] });
+      }
+    }
+    
+    // Update local state with pre-resolved labels
+    if (Object.keys(newLabels).length > 0) {
+      setResolvedLabels((prev) => ({ ...prev, ...newLabels }));
+    }
+    
+    // Resolve missing IDs via API
+    if (toResolve.length > 0) {
+      entityResolver.resolveEntities(toResolve).then(() => {
+        // After resolution, update local state with newly resolved labels
+        const updatedLabels: Record<string, Record<string, string>> = {};
+        for (const col of referenceColumns) {
+          const ref = col.reference!;
+          const idFieldName = ref.idField || col.key;
+          for (const row of data) {
+            const id = (row as any)[idFieldName];
+            if (!id) continue;
+            const idStr = String(id);
+            const label = entityResolver.getLabel(ref.entityType, idStr);
+            if (label) {
+              if (!updatedLabels[col.key]) updatedLabels[col.key] = {};
+              updatedLabels[col.key][idStr] = label;
+            }
+          }
+        }
+        if (Object.keys(updatedLabels).length > 0) {
+          setResolvedLabels((prev) => ({ ...prev, ...updatedLabels }));
+        }
+      });
+    }
+  }, [data, referenceColumns, entityResolver]);
+  
   // Auto-enable filters if registry has filters for this tableId (unless explicitly disabled)
   const filtersEnabled = showGlobalFilters || hasRegistryFilters;
   
@@ -950,9 +1042,56 @@ export function DataTable<TData extends Record<string, unknown>>({
         header: col.label,
         cell: ({ row, getValue }: { row: any; getValue: () => any }) => {
           const value = getValue();
+          
+          // If custom render is provided, always use it
           if (col.render) {
             return col.render(value, row.original, row.index);
           }
+          
+          // Handle reference columns (auto-resolve ID to label and render link)
+          if (col.reference?.entityType) {
+            const ref = col.reference;
+            const entityDef = getEntityDefinition(ref.entityType);
+            
+            // Get the ID from either the specified idField or the column key
+            const idValue = ref.idField ? (row.original as any)[ref.idField] : value;
+            if (!idValue) return '' as React.ReactNode;
+            
+            const idStr = String(idValue);
+            
+            // Get the label from resolved cache
+            const label = resolvedLabels[col.key]?.[idStr] || entityResolver.getLabel(ref.entityType, idStr);
+            
+            // If no label resolved yet, show ID as fallback
+            const displayText = label || idStr;
+            
+            // Determine if we should render as a link
+            const detailPath = ref.detailPath || (entityDef ? getEntityDetailPath(ref.entityType, idStr) : null);
+            const shouldLink = ref.linkable !== false && detailPath;
+            
+            if (shouldLink && detailPath) {
+              return (
+                <a
+                  href={detailPath}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    // Allow default navigation
+                  }}
+                  style={{
+                    color: 'inherit',
+                    textDecoration: 'underline',
+                    textDecorationColor: colors.text.muted,
+                    textUnderlineOffset: '2px',
+                  }}
+                >
+                  {displayText}
+                </a>
+              );
+            }
+            
+            return displayText as React.ReactNode;
+          }
+          
           return value as React.ReactNode;
         },
         enableSorting: col.sortable !== false,
@@ -986,7 +1125,7 @@ export function DataTable<TData extends Record<string, unknown>>({
     })) as any[];
 
     return [...base, ...dyn, ...metricDyn] as any;
-  }, [columns, bucketColumns, metricColumns]);
+  }, [columns, bucketColumns, metricColumns, resolvedLabels, entityResolver, colors.text.muted]);
 
   // Convert globalFilterValues to columnFilters format
   const globalFiltersAsColumnFilters = useMemo<ColumnFiltersState>(() => {

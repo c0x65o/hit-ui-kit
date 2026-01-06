@@ -82,6 +82,19 @@ export const ENTITY_REGISTRY: Record<string, EntityDefinition> = {
     },
   },
 
+  // CRM Company (alias for prospect, uses /crm/companies path)
+  'crm.company': {
+    resolveEndpoint: '/api/crm/prospects',
+    searchEndpoint: '/api/crm/prospects',
+    labelField: 'name',
+    valueField: 'id',
+    itemsPath: 'items',
+    detailPath: '/crm/companies/:id',
+    labelFromRowMap: {
+      companyId: 'companyName',
+    },
+  },
+
   // Auth Users
   'auth.user': {
     resolveEndpoint: '/api/crm/users',

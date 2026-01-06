@@ -538,23 +538,27 @@ export function ViewSelector({ tableId, onViewChange, onReady, availableColumns 
     if (fieldType === 'autocomplete' && column?.searchEndpoint) {
       const searchEndpoint = column.searchEndpoint;
       const resolveEndpoint = column.resolveEndpoint || searchEndpoint;
-      const itemsPath = column.itemsPath || 'items';
+      const itemsPath = column.itemsPath; // May be undefined for auth directory
       const valueField = column.valueField || 'id';
       const labelField = column.labelField || 'name';
+      const isAuthDirectory = searchEndpoint?.includes('/directory/users');
 
       const onSearch = async (query: string, limit: number) => {
         try {
-          const url = `${searchEndpoint}?search=${encodeURIComponent(query)}&pageSize=${limit}`;
+          // Auth directory uses ?limit= instead of ?pageSize=
+          const url = `${searchEndpoint}?search=${encodeURIComponent(query)}&pageSize=${limit}&limit=${limit}`;
           const res = await fetch(url);
           if (!res.ok) return [];
           const json = await res.json();
           
           let items = json;
+          // If itemsPath is defined, extract items from response
           if (itemsPath) {
             for (const part of itemsPath.split('.')) {
               items = items?.[part];
             }
           }
+          // If response is not an array (and we have itemsPath), something went wrong
           if (!Array.isArray(items)) items = [];
 
           return items.map((item: any) => {
@@ -576,24 +580,35 @@ export function ViewSelector({ tableId, onViewChange, onReady, availableColumns 
       const resolveValue = async (value: string) => {
         if (!value) return null;
         try {
-          // If value contains @ or special chars, use query param instead of path
-          const isEmailOrSpecial = value.includes('@') || value.includes('/');
-          const url = isEmailOrSpecial
-            ? `${resolveEndpoint}?id=${encodeURIComponent(value)}`
-            : `${resolveEndpoint}/${encodeURIComponent(value)}`;
+          let url: string;
+          if (isAuthDirectory) {
+            // Auth directory uses ?search= to find users
+            url = `${resolveEndpoint}?search=${encodeURIComponent(value)}&limit=10`;
+          } else if (value.includes('@') || value.includes('/')) {
+            // Email-based IDs use query param
+            url = `${resolveEndpoint}?id=${encodeURIComponent(value)}`;
+          } else {
+            // UUID-based IDs use path
+            url = `${resolveEndpoint}/${encodeURIComponent(value)}`;
+          }
           
           const res = await fetch(url);
           if (!res.ok) return null;
           const json = await res.json();
           
-          // Handle both single item and items array responses
-          let item = json;
-          if (itemsPath) {
+          // Handle auth directory (plain array) or standard responses
+          let item: any;
+          if (Array.isArray(json)) {
+            // Auth directory returns plain array - find exact match
+            item = json.find((u: any) => u[valueField] === value) || json[0];
+          } else if (itemsPath) {
             let items = json;
             for (const part of itemsPath.split('.')) {
               items = items?.[part];
             }
             item = Array.isArray(items) ? items[0] : items;
+          } else {
+            item = json.items?.[0] || json;
           }
           
           if (!item) return null;

@@ -214,6 +214,12 @@ export interface ColumnReferenceConfig {
    */
   labelFromRow?: string;
   /**
+   * The row field that contains the ID to use for resolution and linking.
+   * Defaults to the column key. Use this when the column key differs from the ID field.
+   * Example: column key is 'companyName' but ID is in 'companyId'
+   */
+  idField?: string;
+  /**
    * Whether to render as a clickable link. Default: true if detailPath exists.
    */
   linkable?: boolean;

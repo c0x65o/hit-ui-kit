@@ -286,7 +286,21 @@ export {
 } from './components';
 
 export type { AuthLayoutProps, AuthCardProps, FormInputProps, UserAvatarProps } from './components';
-export type { GlobalFilterConfig } from './types';
+export type { GlobalFilterConfig, ColumnReferenceConfig } from './types';
+
+// Entity Registry (for reference column configuration)
+export {
+  ENTITY_REGISTRY,
+  getEntityDefinition,
+  hasEntityDefinition,
+  getLabelFromRowField,
+  getEntityDetailPath,
+  type EntityDefinition,
+} from './config/entityRegistry';
+
+// Entity Resolver Hook
+export { useEntityResolver } from './hooks/useEntityResolver';
+export type { ResolveRequest, ResolvedEntity } from './hooks/useEntityResolver';
 
 // Layout Primitive Types
 export type {
