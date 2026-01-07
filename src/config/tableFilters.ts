@@ -96,6 +96,16 @@ export const TABLE_FILTER_REGISTRY: Record<string, TableFilterDefinition[]> = {
       label: 'Activity Date',
       filterType: 'daterange',
     },
+    {
+      columnKey: 'createdOnTimestamp',
+      label: 'Created',
+      filterType: 'daterange',
+    },
+    {
+      columnKey: 'lastUpdatedOnTimestamp',
+      label: 'Updated',
+      filterType: 'daterange',
+    },
   ],
 
   // CRM Prospects/Companies
@@ -182,6 +192,16 @@ export const TABLE_FILTER_REGISTRY: Record<string, TableFilterDefinition[]> = {
       valueField: 'email',
       labelField: 'email',
     },
+    {
+      columnKey: 'createdOnTimestamp',
+      label: 'Created',
+      filterType: 'daterange',
+    },
+    {
+      columnKey: 'lastUpdatedOnTimestamp',
+      label: 'Updated',
+      filterType: 'daterange',
+    },
   ],
 
   // CRM Opportunities
@@ -237,6 +257,16 @@ export const TABLE_FILTER_REGISTRY: Record<string, TableFilterDefinition[]> = {
       resolveEndpoint: '/api/proxy/auth/directory/users',
       valueField: 'email',
       labelField: 'email',
+    },
+    {
+      columnKey: 'createdOnTimestamp',
+      label: 'Created',
+      filterType: 'daterange',
+    },
+    {
+      columnKey: 'lastUpdatedOnTimestamp',
+      label: 'Updated',
+      filterType: 'daterange',
     },
   ],
 

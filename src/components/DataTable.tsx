@@ -197,7 +197,21 @@ export function DataTable<TData extends Record<string, unknown>>({
     initialSorting?.map((s) => ({ id: s.id, desc: s.desc ?? false })) || []
   );
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(initialColumnVisibility || {});
+  const deriveInitialVisibility = useMemo(() => {
+    // QoL default: hide audit-y timestamp columns by default across tables,
+    // unless the page/view explicitly opts them visible.
+    const base: VisibilityState = { ...(initialColumnVisibility || {}) };
+    const defaultHiddenKeys = ['createdOnTimestamp', 'lastUpdatedOnTimestamp', 'createdAt', 'updatedAt'];
+
+    const present = new Set(columns.map((c) => String((c as any)?.key || '')));
+    for (const k of defaultHiddenKeys) {
+      if (!present.has(k)) continue;
+      if (base[k] === undefined) base[k] = false;
+    }
+    return base;
+  }, [initialColumnVisibility, columns]);
+
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(deriveInitialVisibility);
   const [globalFilter, setGlobalFilter] = useState('');
   
   // Debounced search for server-side filtering
