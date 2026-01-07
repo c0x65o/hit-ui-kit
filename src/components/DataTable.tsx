@@ -21,6 +21,8 @@ import {
   Eye, 
   EyeOff, 
   Lock,
+  Settings,
+  Trash2,
   Unlock,
   Search,
   ChevronLeft,
@@ -37,6 +39,8 @@ import { Input } from './Input';
 import { Dropdown } from './Dropdown';
 import { ViewSelector } from './ViewSelector';
 import { FilterDropdown } from './FilterDropdown';
+import { useAlertDialog } from '../hooks/useAlertDialog.js';
+import { AlertDialog } from './AlertDialog.js';
 import { useTableFilters } from '../hooks/useTableFilters';
 import { useDebounce } from '../hooks/useDebounce';
 import { useEntityResolver } from '../hooks/useEntityResolver';
@@ -174,6 +178,8 @@ export function DataTable<TData extends Record<string, unknown>>({
   // When pinned, quick filters + local modifiers persist across view switches (no "fighting").
   // When not pinned, they persist per view.
   const [overlayPinned, setOverlayPinned] = useState(false);
+  const [resetCounter, setResetCounter] = useState(0);
+  const alertDialog = useAlertDialog();
   const overlayPinnedKey = tableId ? `hit:table-overlay-pinned:${tableId}` : null;
   useEffect(() => {
     if (!overlayPinnedKey) return;
@@ -1230,6 +1236,44 @@ export function DataTable<TData extends Record<string, unknown>>({
     }
   };
 
+  const resetLocalTableState = async () => {
+    if (typeof window === 'undefined') return;
+    if (!tableId) return;
+    const confirmed = await alertDialog.showConfirm(
+      'Reset this table back to defaults? This clears locally saved filters, columns, and sorting.',
+      { title: 'Reset table', variant: 'warning', confirmText: 'Reset', cancelText: 'Cancel' }
+    );
+    if (!confirmed) return;
+
+    try {
+      // Clear any local per-table keys.
+      const prefixes = [
+        `hit:table-filters:${tableId}`,
+        `hit:table-modifiers:${tableId}`,
+        `hit:table-overlay-pinned:${tableId}`,
+      ];
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const k = localStorage.key(i);
+        if (!k) continue;
+        if (prefixes.some((p) => k.startsWith(p))) {
+          localStorage.removeItem(k);
+        }
+      }
+    } catch {
+      // ignore localStorage failures
+    }
+
+    // Reset UI state immediately
+    setOverlayPinned(false);
+    setGlobalFilter('');
+    setGlobalFilterValues({});
+    setColumnFilters([]);
+    // Sorting/column visibility: fall back to view defaults on next selection; otherwise initial props.
+    setSorting(initialSorting?.map((s) => ({ id: s.id, desc: s.desc ?? false })) || []);
+    setColumnVisibility(initialColumnVisibility || {});
+    setResetCounter((c) => c + 1);
+  };
+
   const table = useReactTable({
     data: augmentedData,
     columns: tableColumns,
@@ -1513,109 +1557,88 @@ export function DataTable<TData extends Record<string, unknown>>({
           flexWrap: 'wrap',
         })}>
           {viewsEnabled && tableId && (
-            <div style={styles({ display: 'flex', gap: spacing.xs, alignItems: 'center' })}>
-              <ViewSelector 
-                tableId={tableId} 
-                availableColumns={[
-                  ...columns.map((col) => ({ 
-                    key: col.key, 
-                    label: col.label, 
-                    // Best-effort inference so view filters "just work" even without registry entries.
-                    // Particularly helpful for date-ish fields like createdAt/updatedAt/*Timestamp.
-                    type:
-                      col.filterType ||
-                      (/(?:At|_at|On|_on|Date|_date|Timestamp|_timestamp)$/i.test(String(col.key))
-                        ? ('date' as const)
-                        : ('string' as const)),
-                    options: col.filterOptions,
-                    hideable: col.hideable !== false,
-                  })),
-                  ...Object.values(bucketColumns || {}).map((c) => ({
+            <ViewSelector 
+              tableId={tableId} 
+              availableColumns={[
+                ...columns.map((col) => ({ 
+                  key: col.key, 
+                  label: col.label, 
+                  // Best-effort inference so view filters "just work" even without registry entries.
+                  // Particularly helpful for date-ish fields like createdAt/updatedAt/*Timestamp.
+                  type:
+                    col.filterType ||
+                    (/(?:At|_at|On|_on|Date|_date|Timestamp|_timestamp)$/i.test(String(col.key))
+                      ? ('date' as const)
+                      : ('string' as const)),
+                  options: col.filterOptions,
+                  hideable: col.hideable !== false,
+                })),
+                ...Object.values(bucketColumns || {}).map((c) => ({
+                  key: c.columnKey,
+                  label: c.columnLabel || c.columnKey,
+                  type: 'select' as const,
+                  options: (c.buckets || []).map((b) => ({ value: b.bucketLabel, label: b.bucketLabel, sortOrder: b.sortOrder })),
+                  hideable: true,
+                })),
+                ...Object.values(metricColumns || {})
+                  .slice()
+                  .sort((a, b) => (Number(a?.sortOrder ?? 0) - Number(b?.sortOrder ?? 0)) || String(a?.columnLabel || a?.columnKey || '').localeCompare(String(b?.columnLabel || b?.columnKey || '')))
+                  .map((c) => ({
                     key: c.columnKey,
                     label: c.columnLabel || c.columnKey,
-                    type: 'select' as const,
-                    options: (c.buckets || []).map((b) => ({ value: b.bucketLabel, label: b.bucketLabel, sortOrder: b.sortOrder })),
+                    type: 'number' as const,
                     hideable: true,
                   })),
-                  ...Object.values(metricColumns || {})
-                    .slice()
-                    .sort((a, b) => (Number(a?.sortOrder ?? 0) - Number(b?.sortOrder ?? 0)) || String(a?.columnLabel || a?.columnKey || '').localeCompare(String(b?.columnLabel || b?.columnKey || '')))
-                    .map((c) => ({
-                      key: c.columnKey,
-                      label: c.columnLabel || c.columnKey,
-                      type: 'number' as const,
-                      hideable: true,
-                    })),
-                ]}
-                onReady={setViewSystemReady}
-                onViewChange={(view: TableView | null) => {
-                  currentViewIdRef.current = view?.id ?? null;
-                  setCurrentViewId(view?.id ?? null);
-                  hasInitializedSelectionRef.current = true;
+              ]}
+              onReady={setViewSystemReady}
+              onViewChange={(view: TableView | null) => {
+                currentViewIdRef.current = view?.id ?? null;
+                setCurrentViewId(view?.id ?? null);
+                hasInitializedSelectionRef.current = true;
 
-                  if (onViewChange) {
-                    onViewChange(view as any);
-                  }
-                  if (onViewFiltersChange) {
-                    onViewFiltersChange(view?.filters || []);
-                  }
-                  if (onViewFilterModeChange) {
-                    const modeRaw = (view as any)?.metadata?.filterMode;
-                    const mode: 'all' | 'any' = modeRaw === 'any' ? 'any' : 'all';
-                    onViewFilterModeChange(mode);
-                  }
-                  if (onViewSortingChange) {
-                    onViewSortingChange((view?.sorting as any) || []);
-                  }
+                if (onViewChange) {
+                  onViewChange(view as any);
+                }
+                if (onViewFiltersChange) {
+                  onViewFiltersChange(view?.filters || []);
+                }
+                if (onViewFilterModeChange) {
+                  const modeRaw = (view as any)?.metadata?.filterMode;
+                  const mode: 'all' | 'any' = modeRaw === 'any' ? 'any' : 'all';
+                  onViewFilterModeChange(mode);
+                }
+                if (onViewSortingChange) {
+                  onViewSortingChange((view?.sorting as any) || []);
+                }
 
-                  // Apply view defaults, then overlay local modifiers (per-view or pinned).
-                  const baseSorting: SortingState =
-                    view?.sorting && Array.isArray(view.sorting)
-                      ? view.sorting
-                          .map((s: any) => ({ id: String(s?.id || ''), desc: Boolean(s?.desc) }))
-                          .filter((s: any) => s.id)
-                      : initialSorting?.map((s) => ({ id: s.id, desc: s.desc ?? false })) || [];
+                // Apply view defaults, then overlay local modifiers (per-view or pinned).
+                const baseSorting: SortingState =
+                  view?.sorting && Array.isArray(view.sorting)
+                    ? view.sorting
+                        .map((s: any) => ({ id: String(s?.id || ''), desc: Boolean(s?.desc) }))
+                        .filter((s: any) => s.id)
+                    : initialSorting?.map((s) => ({ id: s.id, desc: s.desc ?? false })) || [];
 
-                  const baseColumnVisibility: VisibilityState =
-                    (view?.columnVisibility as any) ?? (initialColumnVisibility || {});
+                const baseColumnVisibility: VisibilityState =
+                  (view?.columnVisibility as any) ?? (initialColumnVisibility || {});
 
-                  const mods = readModifiers(tableId, overlayPinned ? '__pinned__' : (view?.id ?? null));
-                  if (mods?.sorting) setSorting(mods.sorting);
-                  else setSorting(baseSorting);
+                const mods = readModifiers(tableId, overlayPinned ? '__pinned__' : (view?.id ?? null));
+                if (mods?.sorting) setSorting(mods.sorting);
+                else setSorting(baseSorting);
 
-                  if (mods?.columnVisibility) setColumnVisibility(mods.columnVisibility);
-                  else setColumnVisibility(baseColumnVisibility);
+                if (mods?.columnVisibility) setColumnVisibility(mods.columnVisibility);
+                else setColumnVisibility(baseColumnVisibility);
 
-                  // Apply groupBy from view
-                  const newGroupBy = view?.groupBy || null;
-                  setViewGroupBy(newGroupBy);
-                  // Reset per-group pagination when view changes
-                  setGroupPages({});
-                  if (onViewGroupByChange) {
-                    onViewGroupByChange(newGroupBy);
-                  }
-                }}
-              />
-
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => {
-                  const next = !overlayPinned;
-                  setOverlayPinned(next);
-                  if (overlayPinnedKey) {
-                    try {
-                      localStorage.setItem(overlayPinnedKey, next ? 'true' : 'false');
-                    } catch {
-                      // ignore
-                    }
-                  }
-                }}
-                title={overlayPinned ? 'Pinned: keep filters/columns/sort across views' : 'Per-view: keep filters/columns/sort per view'}
-              >
-                {overlayPinned ? <Lock size={16} /> : <Unlock size={16} />}
-              </Button>
-            </div>
+                // Apply groupBy from view
+                const newGroupBy = view?.groupBy || null;
+                setViewGroupBy(newGroupBy);
+                // Reset per-group pagination when view changes
+                setGroupPages({});
+                if (onViewGroupByChange) {
+                  onViewGroupByChange(newGroupBy);
+                }
+              }}
+            />
           )}
           {searchable && (
             <div style={{ flex: '1', minWidth: '200px', maxWidth: '400px', position: 'relative' }}>
@@ -1653,29 +1676,11 @@ export function DataTable<TData extends Record<string, unknown>>({
           )}
 
           <div style={{ display: 'flex', gap: spacing.sm }}>
-            {showRefresh && (
-              <Button 
-                variant="secondary" 
-                size="sm" 
-                onClick={onRefresh || (() => {})}
-                disabled={!onRefresh || refreshing || loading}
-                title={!onRefresh ? 'Refresh handler not provided' : undefined}
-              >
-                <RefreshCw 
-                  size={16} 
-                  style={{ 
-                    marginRight: spacing.xs,
-                    animation: (refreshing || loading) ? 'spin 1s linear infinite' : undefined,
-                  }} 
-                />
-                Refresh
-              </Button>
-            )}
-
             {effectiveGlobalFilters.length > 0 && (
               <FilterDropdown
                 tableId={tableId}
                 persistenceKey={tableId ? getQuickFiltersKey(tableId, overlayPinned ? '__pinned__' : currentViewId) : undefined}
+                resetCounter={resetCounter}
                 filters={effectiveGlobalFilters}
                 values={globalFilterValues}
                 onChange={handleGlobalFiltersChange}
@@ -1714,15 +1719,85 @@ export function DataTable<TData extends Record<string, unknown>>({
               />
             )}
 
-            {exportable && hasData && (
-              <Button variant="secondary" size="sm" onClick={handleExport}>
-                <Download size={16} style={{ marginRight: spacing.xs }} />
-                Export CSV
-              </Button>
+            {exportable && (
+              <Dropdown
+                align="right"
+                trigger={
+                  <Button variant="secondary" size="sm" title="Settings">
+                    <Settings size={16} />
+                  </Button>
+                }
+                items={[
+                  {
+                    label: 'Reset table (local)',
+                    icon: <Trash2 size={14} />,
+                    onClick: () => void resetLocalTableState(),
+                    disabled: !tableId,
+                    danger: true,
+                  },
+                  {
+                    label: 'Export CSV',
+                    icon: <Download size={14} />,
+                    onClick: handleExport,
+                    disabled: !hasData,
+                  },
+                ]}
+              />
             )}
+
+            {/* Icon-only controls grouped together on the far right */}
+            <div style={styles({ display: 'flex', gap: spacing.xs, alignItems: 'center' })}>
+              {showRefresh && (
+                <Button 
+                  variant="secondary" 
+                  size="sm" 
+                  onClick={onRefresh || (() => {})}
+                  disabled={!onRefresh || refreshing || loading}
+                  title={
+                    !onRefresh
+                      ? 'Refresh handler not provided'
+                      : refreshing || loading
+                        ? 'Refreshing…'
+                        : 'Refresh'
+                  }
+                >
+                  <RefreshCw 
+                    size={16} 
+                    style={{ 
+                      animation: (refreshing || loading) ? 'spin 1s linear infinite' : undefined,
+                    }} 
+                  />
+                </Button>
+              )}
+
+              {/* Overlay lock toggle: controls whether quick filters/columns/sort persist across view switches */}
+              {tableId && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    const next = !overlayPinned;
+                    setOverlayPinned(next);
+                    if (overlayPinnedKey) {
+                      try {
+                        localStorage.setItem(overlayPinnedKey, next ? 'true' : 'false');
+                      } catch {
+                        // ignore
+                      }
+                    }
+                  }}
+                  title={overlayPinned ? 'Pinned: keep filters/columns/sort across views' : 'Per-view: keep filters/columns/sort per view'}
+                >
+                  {overlayPinned ? <Lock size={16} /> : <Unlock size={16} />}
+                </Button>
+              )}
+            </div>
           </div>
         </div>
       )}
+
+      {/* Alert dialog (used for reset confirmation, etc.) */}
+      <AlertDialog {...alertDialog.props} />
 
       {/* Table */}
       <div style={{ overflowX: 'auto', border: `1px solid ${colors.border.subtle}`, borderRadius: spacing.sm }}>

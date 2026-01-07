@@ -18,6 +18,11 @@ export interface FilterDropdownProps {
    * between view filters and quick filters when switching views.
    */
   persistenceKey?: string;
+  /**
+   * Increment to force a local reset of enabled filters + values.
+   * Used by DataTable "Reset table" to immediately reflect cleared localStorage.
+   */
+  resetCounter?: number;
   /** Filter configurations */
   filters: GlobalFilterConfig[];
   /** Current filter values */
@@ -45,7 +50,7 @@ export interface FilterDropdownProps {
  * - Persists filter state to localStorage per tableId
  * - Supports all filter types: string, number, date, daterange, boolean, select, multiselect, autocomplete
  */
-export function FilterDropdown({ tableId, persistenceKey, filters, values, onChange, columns }: FilterDropdownProps) {
+export function FilterDropdown({ tableId, persistenceKey, resetCounter, filters, values, onChange, columns }: FilterDropdownProps) {
   const { colors, radius, spacing, textStyles: ts, shadows } = useThemeTokens();
   const [open, setOpen] = useState(false);
   const [position, setPosition] = useState<{ top: number; left?: number; right?: number } | null>(null);
@@ -58,6 +63,16 @@ export function FilterDropdown({ tableId, persistenceKey, filters, values, onCha
 
   const legacyStorageKey = tableId ? `hit:table-filters:${tableId}` : null;
   const storageKey = persistenceKey || legacyStorageKey;
+
+  // Force-reset from parent (used by DataTable gear menu "Reset table")
+  useEffect(() => {
+    if (!storageKey) return;
+    // Clear UI state and notify parent immediately.
+    setEnabledFilters(new Set());
+    setLocalValues({});
+    onChange({});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storageKey, resetCounter]);
 
   // Load from localStorage on mount / when key changes
   useEffect(() => {
