@@ -428,11 +428,32 @@ export function DataTable<TData extends Record<string, unknown>>({
   // Track if view system is ready (to prevent flash before view is applied)
   const [viewSystemReady, setViewSystemReady] = useState(!viewsEnabled);
 
-  // Persist modifiers whenever the user changes sorting/columns after initial view selection.
+  // If views are disabled but tableId exists, still restore/persist local modifiers
+  // so column visibility + sorting survive refreshes.
   useEffect(() => {
-    if (!viewsEnabled || !tableId) return;
-    if (!viewSystemReady) return;
-    if (!hasInitializedSelectionRef.current) return;
+    if (!tableId) return;
+    if (viewsEnabled) return;
+    // Only run once per tableId.
+    if (hasInitializedSelectionRef.current) return;
+    currentViewIdRef.current = null;
+    const mods = readModifiers(tableId, null);
+    if (mods?.sorting) setSorting(mods.sorting);
+    if (mods?.columnVisibility) setColumnVisibility(mods.columnVisibility);
+    hasInitializedSelectionRef.current = true;
+  }, [tableId, viewsEnabled]);
+
+  // Persist modifiers whenever the user changes sorting/columns after initial view selection
+  // (or immediately for non-views tables once initialized).
+  useEffect(() => {
+    if (!tableId) return;
+    // When views are enabled, don't persist until the view system is ready and a selection is applied.
+    if (viewsEnabled) {
+      if (!viewSystemReady) return;
+      if (!hasInitializedSelectionRef.current) return;
+    } else {
+      // No views: don't write before we finish the one-time restore.
+      if (!hasInitializedSelectionRef.current) return;
+    }
     writeModifiers(tableId, currentViewIdRef.current, { sorting, columnVisibility });
   }, [viewsEnabled, tableId, viewSystemReady, sorting, columnVisibility]);
 
