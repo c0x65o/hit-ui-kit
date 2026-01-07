@@ -228,7 +228,7 @@ export function useFormSubmit<T = unknown>(
     } else {
       setErrorState(err);
       if (err.fieldErrors) {
-        setFieldErrorsState((prev) => ({ ...prev, ...err.fieldErrors }));
+        setFieldErrorsState((prev: Record<string, string>) => ({ ...prev, ...err.fieldErrors }));
       }
     }
   }, []);
@@ -238,7 +238,7 @@ export function useFormSubmit<T = unknown>(
   }, []);
 
   const clearFieldError = useCallback((field: string) => {
-    setFieldErrorsState((prev) => {
+    setFieldErrorsState((prev: Record<string, string>) => {
       if (!(field in prev)) return prev;
       const next = { ...prev };
       delete next[field];
@@ -296,7 +296,7 @@ export function useFormSubmit<T = unknown>(
 
         // Merge any field errors from the API
         if (parsed.fieldErrors) {
-          setFieldErrorsState((prev) => ({ ...prev, ...parsed.fieldErrors }));
+          setFieldErrorsState((prev: Record<string, string>) => ({ ...prev, ...parsed.fieldErrors }));
         }
 
         setErrorState(parsed);
