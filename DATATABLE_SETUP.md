@@ -24,7 +24,7 @@ npm run build
 1. Make sure `@tanstack/react-table` is installed in your app
 2. Make sure hit-ui-kit has been built (`npm run build` in hit-ui-kit)
 3. Make sure DataTable is exported from hit-ui-kit (it is - see `src/index.tsx`)
-4. Make sure dashboard-shell kit imports and includes DataTable (it does - see `src/kit.ts`)
+4. Make sure erp-shell-core kit imports and includes DataTable (it does - see `src/kit.ts`)
 
 ## Troubleshooting
 
@@ -47,16 +47,16 @@ If you get "Element type is invalid: expected a string... but got: undefined":
    grep -r "export.*DataTable" hit-feature-packs/hit-ui-kit/src
    ```
 
-4. **Verify dashboard-shell imports it:**
+4. **Verify erp-shell-core imports it:**
    ```bash
-   grep -r "DataTable" hit-feature-packs/hit-feature-pack-dashboard-shell/src/kit.ts
+   grep -r "DataTable" hit-feature-packs/hit-feature-pack-erp-shell-core/src/kit.ts
    ```
 
 ## Current Status
 
 ✅ DataTable component created  
 ✅ Added to hit-ui-kit exports  
-✅ Added to dashboard-shell kit  
+✅ Added to erp-shell-core kit  
 ✅ TypeScript types fixed  
 ✅ Theme tokens fixed  
 ⚠️ **Requires @tanstack/react-table in consuming app**  
