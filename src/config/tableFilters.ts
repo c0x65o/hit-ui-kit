@@ -212,6 +212,15 @@ export const TABLE_FILTER_REGISTRY: Record<string, TableFilterDefinition[]> = {
       filterType: 'string',
     },
     {
+      columnKey: 'assigneeUserId',
+      label: 'Assignee',
+      filterType: 'autocomplete',
+      searchEndpoint: '/api/proxy/auth/directory/users',
+      resolveEndpoint: '/api/proxy/auth/directory/users',
+      valueField: 'email',
+      labelField: 'email',
+    },
+    {
       columnKey: 'pipelineStage',
       label: 'Stage',
       filterType: 'select',
