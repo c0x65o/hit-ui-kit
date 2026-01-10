@@ -7,55 +7,27 @@
  * Use this for lazy loading the kit.
  */
 
-import React, { createContext, useContext } from 'react';
+import React, { createContext, useContext, useRef } from 'react';
 import type { UiKit } from './types';
 
 // =============================================================================
-// UI KIT CONTEXT - SINGLETON PATTERN
+// UI KIT CONTEXT
 // =============================================================================
 // 
-// CRITICAL: This module may be bundled multiple times by webpack (once per chunk).
-// Each bundle would create its own React Context, causing "useUi must be used within
-// UiKitProvider" errors because provider and consumer use different context instances.
+// We use a module-level variable to hold the context. Since all @hit/ui-kit
+// imports should resolve to the same node_modules path, there should only be
+// one instance of this module and thus one context.
 //
-// Solution: Access the context through a getter function at RUNTIME, not module load.
-// This prevents webpack from inlining the createContext call.
+// The splitChunks config in webpack ensures this module is in a shared chunk.
 
-const CONTEXT_KEY = '__HIT_UI_KIT_CONTEXT__';
-
-/**
- * Get or create the shared context. Called at runtime, not bundle time.
- * The dynamic property access prevents webpack optimization.
- */
-function getContext(): React.Context<UiKit | null> {
-  // Use bracket notation with a variable to prevent webpack inlining
-  const key = CONTEXT_KEY;
-  
-  if (typeof window !== 'undefined') {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const win = window as any;
-    if (!win[key]) {
-      win[key] = createContext<UiKit | null>(null);
-    }
-    return win[key];
-  }
-  
-  // SSR fallback
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const g = globalThis as any;
-  if (!g[key]) {
-    g[key] = createContext<UiKit | null>(null);
-  }
-  return g[key];
-}
+const UiKitContext = createContext<UiKit | null>(null);
 
 /**
  * Hook to access UI Kit components.
  * Must be used within a UiKitProvider.
  */
 export function useUi(): UiKit {
-  const ctx = getContext();
-  const context = useContext(ctx);
+  const context = useContext(UiKitContext);
   if (!context) {
     throw new Error(
       'useUi must be used within a UiKitProvider. ' +
@@ -75,8 +47,7 @@ export function UiKitProvider({
   kit: UiKit;
   children: React.ReactNode;
 }) {
-  const ctx = getContext();
-  return <ctx.Provider value={kit}>{children}</ctx.Provider>;
+  return <UiKitContext.Provider value={kit}>{children}</UiKitContext.Provider>;
 }
 
 // =============================================================================

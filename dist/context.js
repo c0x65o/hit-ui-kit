@@ -8,46 +8,21 @@ import { jsx as _jsx } from "react/jsx-runtime";
  */
 import { createContext, useContext } from 'react';
 // =============================================================================
-// UI KIT CONTEXT - SINGLETON PATTERN
+// UI KIT CONTEXT
 // =============================================================================
 // 
-// CRITICAL: This module may be bundled multiple times by webpack (once per chunk).
-// Each bundle would create its own React Context, causing "useUi must be used within
-// UiKitProvider" errors because provider and consumer use different context instances.
+// We use a module-level variable to hold the context. Since all @hit/ui-kit
+// imports should resolve to the same node_modules path, there should only be
+// one instance of this module and thus one context.
 //
-// Solution: Access the context through a getter function at RUNTIME, not module load.
-// This prevents webpack from inlining the createContext call.
-const CONTEXT_KEY = '__HIT_UI_KIT_CONTEXT__';
-/**
- * Get or create the shared context. Called at runtime, not bundle time.
- * The dynamic property access prevents webpack optimization.
- */
-function getContext() {
-    // Use bracket notation with a variable to prevent webpack inlining
-    const key = CONTEXT_KEY;
-    if (typeof window !== 'undefined') {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const win = window;
-        if (!win[key]) {
-            win[key] = createContext(null);
-        }
-        return win[key];
-    }
-    // SSR fallback
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const g = globalThis;
-    if (!g[key]) {
-        g[key] = createContext(null);
-    }
-    return g[key];
-}
+// The splitChunks config in webpack ensures this module is in a shared chunk.
+const UiKitContext = createContext(null);
 /**
  * Hook to access UI Kit components.
  * Must be used within a UiKitProvider.
  */
 export function useUi() {
-    const ctx = getContext();
-    const context = useContext(ctx);
+    const context = useContext(UiKitContext);
     if (!context) {
         throw new Error('useUi must be used within a UiKitProvider. ' +
             'Make sure your app is wrapped with <UiKitProvider kit={yourKit}>.');
@@ -58,8 +33,7 @@ export function useUi() {
  * Provider for UI Kit components.
  */
 export function UiKitProvider({ kit, children, }) {
-    const ctx = getContext();
-    return _jsx(ctx.Provider, { value: kit, children: children });
+    return _jsx(UiKitContext.Provider, { value: kit, children: children });
 }
 // =============================================================================
 // HELPER TO CREATE PARTIAL KITS
