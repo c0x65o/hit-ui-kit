@@ -10,7 +10,19 @@ import { createContext, useContext } from 'react';
 // =============================================================================
 // UI KIT CONTEXT
 // =============================================================================
-const UiKitContext = createContext(null);
+// SINGLETON PATTERN: Store context on globalThis to ensure only one instance exists
+// even when the module is bundled multiple times by webpack (e.g., app + feature packs).
+// Without this, each bundle creates its own context, causing "useUi must be used within
+// UiKitProvider" errors because the provider and consumer use different context objects.
+const CONTEXT_KEY = Symbol.for('@hit/ui-kit/UiKitContext');
+function getOrCreateContext() {
+    const globalObj = globalThis;
+    if (!globalObj[CONTEXT_KEY]) {
+        globalObj[CONTEXT_KEY] = createContext(null);
+    }
+    return globalObj[CONTEXT_KEY];
+}
+const UiKitContext = getOrCreateContext();
 /**
  * Hook to access UI Kit components.
  * Must be used within a UiKitProvider.
